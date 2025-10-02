@@ -6,7 +6,9 @@ import PrivacyPolicy from './components/PrivacyPolicy';
 import TermsOfService from './components/TermsOfService';
 
 const API_BASE = '/api';
-const WS_URL = window.location.hostname === 'localhost'
+// Use relative path for WebSocket to go through nginx proxy
+// Only use direct connection for local development without Docker
+const WS_URL = window.location.port === '5173'  // Vite dev server port
   ? 'http://localhost:3001'
   : '';
 
@@ -129,11 +131,14 @@ function RealtimeApp() {
     socket.on('item-created', (data) => {
       if (selectedListRef.current?.id === data.listId) {
         setItems(prev => {
-          // Avoid duplicates from optimistic updates
-          if (prev.find(item => item.id === data.item.id)) {
-            return prev;
+          // Check if item already exists (from optimistic update)
+          const existingItem = prev.find(item => item.id === data.item.id);
+          if (existingItem) {
+            // Replace with server version to ensure consistency
+            return prev.map(item => item.id === data.item.id ? data.item : item);
           }
-          return [...prev, data.item];
+          // Add new item for other users
+          return [...prev, data.item].sort((a, b) => a.position - b.position);
         });
       }
     });
@@ -148,7 +153,12 @@ function RealtimeApp() {
 
     socket.on('item-deleted', (data) => {
       if (selectedListRef.current?.id === data.listId) {
-        setItems(prev => prev.filter(item => item.id !== data.itemId));
+        setItems(prev => {
+          // Remove the item if it exists
+          const filtered = prev.filter(item => item.id !== data.itemId);
+          // Only update if the item was actually found and removed
+          return filtered.length !== prev.length ? filtered : prev;
+        });
       }
     });
 
@@ -401,15 +411,35 @@ function RealtimeApp() {
   const createItem = async () => {
     if (!newItemText.trim() || !selectedList) return;
 
+    // Create a temporary item for optimistic update
+    const tempItem = {
+      id: `temp-${Date.now()}`,
+      text: newItemText,
+      completed: false,
+      list_id: selectedList.id,
+      position: items.length
+    };
+
+    // Optimistic update - add temporary item immediately
+    setItems(prev => [...prev, tempItem]);
+    const savedText = newItemText;
+    setNewItemText('');
+
     try {
       const response = await axios.post(`${API_BASE}/lists/${selectedList.id}/items`, {
-        text: newItemText,
+        text: savedText,
         completed: false
       });
-      // Optimistic update
-      setItems(prev => [...prev, response.data]);
-      setNewItemText('');
+
+      // Replace temporary item with real one from server
+      setItems(prev => prev.map(item =>
+        item.id === tempItem.id ? response.data : item
+      ));
     } catch (err) {
+      // Rollback on error - remove temporary item
+      setItems(prev => prev.filter(item => item.id !== tempItem.id));
+      setNewItemText(savedText); // Restore the text
+
       if (err.response?.status === 403) {
         setError('You only have view permission for this list');
       } else {
@@ -445,16 +475,21 @@ function RealtimeApp() {
   const deleteItem = async (itemId) => {
     // Store item for rollback
     const deletedItem = items.find(i => i.id === itemId);
+    if (!deletedItem) return;
 
-    // Optimistic update
+    // Optimistic update - remove immediately
     setItems(prev => prev.filter(i => i.id !== itemId));
 
     try {
       await axios.delete(`${API_BASE}/items/${itemId}`);
+      // Socket event will notify other users
     } catch (err) {
-      // Rollback on error
+      // Rollback on error - restore the item at its original position
       if (deletedItem) {
-        setItems(prev => [...prev, deletedItem].sort((a, b) => a.position - b.position));
+        setItems(prev => {
+          const restored = [...prev, deletedItem];
+          return restored.sort((a, b) => a.position - b.position);
+        });
       }
 
       if (err.response?.status === 403) {
