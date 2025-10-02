@@ -51,153 +51,44 @@ For testing, you can register a new account or use:
 
 ```
 .
-├── backend/           # Node.js Express API with Socket.io
-│   ├── server.js      # Main server with auth & real-time features
-│   ├── package.json   # Backend dependencies
-│   └── Dockerfile
-├── frontend/          # React SPA with Tailwind
-│   ├── src/
-│   │   └── RealtimeApp.jsx  # Main app component
-│   ├── package.json   # Frontend dependencies
-│   └── Dockerfile
-├── database/          # PostgreSQL initialization
-│   ├── init.sql       # Initial schema
-│   └── 02-add-users.sql  # User tables
-└── docker-compose.yml # Container orchestration
+├── backend/              # Node.js Express API with Socket.io
+├── frontend/             # React SPA with Tailwind
+├── database/             # PostgreSQL initialization
+├── docker-compose.yml    # Development setup
+├── docker-compose.traefik.yml  # Production with SSL
+├── .env.production.example      # Production config template
+├── deploy-simple.sh      # One-command deploy script
+└── DEPLOYMENT.md         # Deployment guide
 ```
 
 ## Deployment to Production
 
-### Option 1: Deploy with Docker on VPS/Cloud VM
+### Quick Deploy with Automatic SSL (Recommended)
 
-#### Prerequisites
-- A VPS or Cloud VM (AWS EC2, DigitalOcean, Linode, etc.)
-- Domain name pointed to your server's IP
-- Docker and Docker Compose installed on server
+Deploy CollaborList with automatic HTTPS in under 5 minutes:
 
-#### Steps
-
-1. **SSH into your server and clone the repository**:
+1. **Clone on your server:**
 ```bash
-ssh your-server
 git clone https://github.com/yourusername/collaborlist.git
 cd collaborlist
 ```
 
-2. **Create production environment file**:
+2. **Configure environment:**
 ```bash
-cat > .env.production << EOF
-# Database
-DB_HOST=postgres
-DB_PORT=5432
-DB_NAME=listapp
-DB_USER=listuser
-DB_PASSWORD=your-secure-password-here
-POSTGRES_PASSWORD=your-secure-password-here
-
-# Backend
-JWT_SECRET=your-very-long-random-string-here
-PORT=3001
-
-# Google OAuth (see setup below)
-GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
-EOF
+cp .env.production.example .env
+nano .env  # Set DOMAIN, passwords, and email
 ```
 
-3. **Update docker-compose.yml for production**:
-Create a `docker-compose.production.yml`:
-```yaml
-services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: listapp-db
-    env_file: .env.production
-    volumes:
-      - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql
-      - ./database/02-add-users.sql:/docker-entrypoint-initdb.d/02-add-users.sql
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - listapp-network
-    restart: always
-
-  backend:
-    build: ./backend
-    container_name: listapp-backend
-    env_file: .env.production
-    depends_on:
-      - postgres
-    networks:
-      - listapp-network
-    restart: always
-
-  frontend:
-    build: ./frontend
-    container_name: listapp-frontend
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
-    networks:
-      - listapp-network
-    restart: always
-
-volumes:
-  postgres_data:
-
-networks:
-  listapp-network:
-    driver: bridge
-```
-
-4. **Deploy**:
+3. **Deploy:**
 ```bash
-docker-compose -f docker-compose.production.yml up -d --build
+./deploy-simple.sh
 ```
 
-5. **Set up NGINX with SSL (recommended)**:
-Install NGINX and Certbot on your server:
-```bash
-sudo apt update
-sudo apt install nginx certbot python3-certbot-nginx
+That's it! Your app will be live at `https://yourdomain.com` with automatic SSL certificates.
 
-# Create NGINX config
-sudo nano /etc/nginx/sites-available/listapp
-```
+See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions and management commands.
 
-Add this configuration:
-```nginx
-server {
-    server_name collaborlist.com;
-
-    location / {
-        proxy_pass http://localhost:80;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-
-    location /socket.io/ {
-        proxy_pass http://localhost:3001;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-```
-
-Enable the site and get SSL certificate:
-```bash
-sudo ln -s /etc/nginx/sites-available/listapp /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
-sudo certbot --nginx -d collaborlist.com
-```
-
-### Option 2: Deploy to Cloud Platforms
+### Deploy to Cloud Platforms
 
 #### Heroku
 1. Install Heroku CLI
@@ -318,38 +209,28 @@ app.post('/api/auth/google', async (req, res) => {
 
 ## Environment Variables
 
-### Development (.env)
+### Development (.env.example)
 ```env
 # Database
 DB_HOST=postgres
-DB_PORT=5432
 DB_NAME=listapp
 DB_USER=listuser
 DB_PASSWORD=listpass
 
 # Backend
-JWT_SECRET=development-secret-change-in-production
+JWT_SECRET=development-secret
 PORT=3001
-
-# Google OAuth (optional)
-GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 ```
 
-### Production (.env.production)
+### Production (.env)
 ```env
-# Database
-DB_HOST=postgres
-DB_PORT=5432
-DB_NAME=listapp_prod
-DB_USER=produser
-DB_PASSWORD=strong-random-password
-POSTGRES_PASSWORD=strong-random-password
+# Required
+DOMAIN=collaborlist.com              # Your domain
+ACME_EMAIL=you@example.com          # For SSL certificates
+DB_PASSWORD=strong-password         # Database password
+JWT_SECRET=32-char-random-string    # JWT security
 
-# Backend
-JWT_SECRET=very-long-random-string-minimum-32-chars
-PORT=3001
-
-# Google OAuth
+# Optional
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 ```
 
