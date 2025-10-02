@@ -21,6 +21,9 @@ const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 
+// Security configuration
+const { createSecurityMiddleware } = require('./security');
+
 // PostgreSQL connection
 const pool = new Pool({
   host: process.env.DB_HOST || 'postgres',
@@ -30,9 +33,9 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD || 'listpass'
 });
 
-// Middleware
-app.use(cors());
+// Middleware and Security
 app.use(express.json());
+const { validateEmail, sanitizeInput } = createSecurityMiddleware(app, cors, JWT_SECRET);
 
 // Socket.io authentication middleware
 io.use(async (socket, next) => {
@@ -118,8 +121,35 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'healthy', auth: true, realtime: true });
 });
 
+// Security status check (only shows configuration, not secrets)
+app.get('/api/security-status', (req, res) => {
+  res.json({
+    googleOAuth: GOOGLE_CLIENT_ID && !GOOGLE_CLIENT_ID.includes('your-') ? 'configured' : 'not configured',
+    signupMethod: GOOGLE_CLIENT_ID && !GOOGLE_CLIENT_ID.includes('your-') ? 'google-only' : 'email-password',
+    jwtSecure: JWT_SECRET !== 'your-secret-key-change-in-production',
+    rateLimiting: 'enabled',
+    csrfProtection: 'enabled',
+    cors: 'configured',
+    securityHeaders: 'enabled',
+    tokenExpiry: '24h',
+    passwordRequirements: {
+      minLength: 8,
+      requiresUppercase: true,
+      requiresLowercase: true,
+      requiresNumber: true
+    }
+  });
+});
+
 // Auth Routes
 app.post('/api/auth/register', async (req, res) => {
+  // Disable regular signup if Google OAuth is configured
+  if (GOOGLE_CLIENT_ID && !GOOGLE_CLIENT_ID.includes('your-') && GOOGLE_CLIENT_ID !== '') {
+    return res.status(403).json({
+      error: 'Registration is currently disabled. Please use Google Sign-In instead.'
+    });
+  }
+
   const { email, password } = req.body;
 
   if (!email || !password) {
@@ -127,14 +157,15 @@ app.post('/api/auth/register', async (req, res) => {
   }
 
   try {
-    // Check if user exists
+    // Check if user exists (but don't reveal this to the user)
     const existingUser = await pool.query(
       'SELECT id FROM users WHERE email = $1',
       [email]
     );
 
     if (existingUser.rows.length > 0) {
-      return res.status(409).json({ error: 'User already exists' });
+      // Generic error to prevent user enumeration
+      return res.status(400).json({ error: 'Unable to create account. Please try again or use a different email.' });
     }
 
     // Hash password
@@ -147,7 +178,7 @@ app.post('/api/auth/register', async (req, res) => {
     );
 
     const user = result.rows[0];
-    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET);
+    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '24h' });
 
     res.status(201).json({ token, user: { id: user.id, email: user.email } });
   } catch (error) {
@@ -159,6 +190,10 @@ app.post('/api/auth/register', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
 
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password required' });
+  }
+
   try {
     const result = await pool.query(
       'SELECT id, email, password_hash FROM users WHERE email = $1',
@@ -166,21 +201,23 @@ app.post('/api/auth/login', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      // Use same generic error for both cases to prevent user enumeration
+      return res.status(401).json({ error: 'Invalid email or password' });
     }
 
     const user = result.rows[0];
     const validPassword = await bcrypt.compare(password, user.password_hash);
 
     if (!validPassword) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      // Same generic error message
+      return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET);
+    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '24h' });
     res.json({ token, user: { id: user.id, email: user.email } });
   } catch (error) {
     console.error('Error logging in:', error);
-    res.status(500).json({ error: 'Failed to login' });
+    res.status(500).json({ error: 'Authentication failed. Please try again.' });
   }
 });
 
@@ -231,7 +268,7 @@ app.post('/api/auth/google', async (req, res) => {
     const token = jwt.sign({
       id: user.rows[0].id,
       email: user.rows[0].email
-    }, JWT_SECRET);
+    }, JWT_SECRET, { expiresIn: '24h' });
 
     res.json({ token, user: { id: user.rows[0].id, email: user.rows[0].email } });
   } catch (error) {
@@ -259,11 +296,20 @@ app.get('/api/lists', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/lists', authenticateToken, async (req, res) => {
-  const { name, description } = req.body;
+  let { name, description } = req.body;
+
+  // Sanitize inputs
+  name = sanitizeInput(name);
+  description = sanitizeInput(description || '');
+
+  if (!name || name.length < 1) {
+    return res.status(400).json({ error: 'List name is required' });
+  }
+
   try {
     const result = await pool.query(
       'INSERT INTO lists (name, description, user_id) VALUES ($1, $2, $3) RETURNING *',
-      [name, description || '', req.user.id]
+      [name, description, req.user.id]
     );
 
     const newList = result.rows[0];
@@ -280,7 +326,11 @@ app.post('/api/lists', authenticateToken, async (req, res) => {
 
 app.put('/api/lists/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const { name, description } = req.body;
+  let { name, description } = req.body;
+
+  // Sanitize inputs
+  name = sanitizeInput(name);
+  description = sanitizeInput(description);
 
   try {
     // Check permissions
@@ -367,7 +417,8 @@ app.post('/api/lists/:id/share', authenticateToken, async (req, res) => {
     );
 
     if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+      // Generic error - don't reveal if user exists
+      return res.status(400).json({ error: 'Unable to share list. Please check the email address.' });
     }
 
     const shareUserId = userResult.rows[0].id;
@@ -489,7 +540,14 @@ app.get('/api/lists/:listId/items', authenticateToken, async (req, res) => {
 
 app.post('/api/lists/:listId/items', authenticateToken, async (req, res) => {
   const { listId } = req.params;
-  const { text, completed = false } = req.body;
+  let { text, completed = false } = req.body;
+
+  // Sanitize input
+  text = sanitizeInput(text);
+
+  if (!text || text.length < 1) {
+    return res.status(400).json({ error: 'Item text is required' });
+  }
 
   try {
     // Check edit permission
@@ -537,7 +595,15 @@ app.post('/api/lists/:listId/items', authenticateToken, async (req, res) => {
 
 app.put('/api/items/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const { text, completed, position } = req.body;
+  let { text, completed, position } = req.body;
+
+  // Sanitize text input if provided
+  if (text !== undefined) {
+    text = sanitizeInput(text);
+    if (text.length < 1) {
+      return res.status(400).json({ error: 'Item text cannot be empty' });
+    }
+  }
 
   try {
     // Check edit permission through list
@@ -635,6 +701,29 @@ app.delete('/api/items/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// Security check for production environment
+function checkProductionSecurity() {
+  if (process.env.NODE_ENV === 'production') {
+    const errors = [];
+
+    if (!JWT_SECRET || JWT_SECRET === 'your-secret-key-change-in-production') {
+      errors.push('JWT_SECRET must be configured in production');
+    }
+
+    if (!process.env.FRONTEND_URL) {
+      errors.push('FRONTEND_URL should be configured for proper CORS in production');
+    }
+
+    if (errors.length > 0) {
+      console.error('🔴 SECURITY CONFIGURATION ERRORS:');
+      errors.forEach(err => console.error(`  - ${err}`));
+      process.exit(1);
+    }
+
+    console.log('✅ Security checks passed for production environment');
+  }
+}
+
 // Initialize database and start server
 async function initializeDatabase() {
   try {
@@ -690,8 +779,12 @@ async function initializeDatabase() {
   }
 }
 
+// Run security checks before starting
+checkProductionSecurity();
+
 initializeDatabase().then(() => {
   server.listen(PORT, () => {
     console.log(`Server with auth and real-time updates is running on port ${PORT}`);
+    console.log(`Security status: ${GOOGLE_CLIENT_ID && !GOOGLE_CLIENT_ID.includes('your-') ? 'Google OAuth enabled (signup disabled)' : 'Traditional auth enabled'}`);
   });
 });
