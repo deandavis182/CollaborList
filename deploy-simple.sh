@@ -26,10 +26,10 @@ fi
 echo "📦 Deploying for domain: $DOMAIN"
 
 # Stop existing
-docker-compose -f docker-compose.traefik.yml down
+docker compose -f docker-compose.traefik.yml down
 
 # Build and start
-docker-compose -f docker-compose.traefik.yml up -d --build
+docker compose -f docker-compose.traefik.yml up -d --build
 
 echo "✅ Deployment complete!"
 echo "   Your app will be available at https://$DOMAIN"
