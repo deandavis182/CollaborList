@@ -1,0 +1,59 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: listapp-db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-listapp}
+      POSTGRES_USER: ${DB_USER:-listuser}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    volumes:
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./database/02-add-users.sql:/docker-entrypoint-initdb.d/02-add-users.sql
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - listapp-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-listuser} -d ${DB_NAME:-listapp}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  backend:
+    build: ./backend
+    container_name: listapp-backend
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-listapp}
+      DB_USER: ${DB_USER:-listuser}
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      JWT_SECRET: ${JWT_SECRET:-change-this-in-production}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      PORT: 3001
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - listapp-network
+    ports:
+      - "3001:3001"
+    restart: always
+
+  frontend:
+    build: ./frontend
+    container_name: listapp-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - listapp-network
+    restart: always
+
+volumes:
+  postgres_data:
+
+networks:
+  listapp-network:
+    driver: bridge

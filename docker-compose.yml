@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: listapp-db
+    environment:
+      POSTGRES_DB: listapp
+      POSTGRES_USER: listuser
+      POSTGRES_PASSWORD: listpass
+    volumes:
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./database/02-add-users.sql:/docker-entrypoint-initdb.d/02-add-users.sql
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - listapp-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U listuser -d listapp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: listapp-backend
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: listapp
+      DB_USER: listuser
+      DB_PASSWORD: listpass
+      PORT: 3001
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - listapp-network
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: listapp-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - listapp-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  listapp-network:
+    driver: bridge
