@@ -222,12 +222,56 @@ function RealtimeApp() {
   };
 
   const handleGoogleLogin = async () => {
-    setError('Google login requires configuration. Please set up Google OAuth in the backend.');
-    // In production, this would:
-    // 1. Use Google Sign-In JavaScript library
-    // 2. Get the credential token
-    // 3. Send to backend /api/auth/google
-    // 4. Receive JWT token and proceed as normal login
+    // Check if Google Sign-In is available
+    if (!window.google?.accounts?.id) {
+      setError('Google Sign-In not loaded. Please check your configuration.');
+      return;
+    }
+
+    // Get Google Client ID from environment or backend config
+    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+
+    if (!googleClientId || googleClientId.includes('your-')) {
+      setError('Google Sign-In not configured. Add GOOGLE_CLIENT_ID to environment variables.');
+      return;
+    }
+
+    // Initialize Google Sign-In
+    window.google.accounts.id.initialize({
+      client_id: googleClientId,
+      callback: async (response) => {
+        setIsLoading(true);
+        setError(null);
+
+        try {
+          const res = await axios.post(`${API_BASE}/auth/google`, {
+            credential: response.credential
+          });
+
+          const { token, user } = res.data;
+          localStorage.setItem('token', token);
+          localStorage.setItem('user', JSON.stringify(user));
+          setAuthHeader(token);
+          setToken(token);
+          setUser(user);
+          setIsAuthView(false);
+          setEmail('');
+          setPassword('');
+          initializeSocket(token);
+        } catch (err) {
+          if (err.response?.data?.error) {
+            setError(err.response.data.error);
+          } else {
+            setError('Failed to authenticate with Google');
+          }
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    });
+
+    // Trigger the Google Sign-In prompt
+    window.google.accounts.id.prompt();
   };
 
   const logout = () => {

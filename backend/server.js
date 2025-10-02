@@ -19,7 +19,7 @@ const io = socketIo(server, {
 
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'your-google-client-id';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 
 // PostgreSQL connection
 const pool = new Pool({
@@ -184,24 +184,59 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// Google OAuth login endpoint (placeholder)
+// Google OAuth login endpoint
 app.post('/api/auth/google', async (req, res) => {
   const { credential } = req.body;
 
-  try {
-    // Note: In production, you would:
-    // 1. Verify the Google token
-    // 2. Extract user info
-    // 3. Create or update user in database
-    // 4. Return JWT token
-
-    // For now, return a message indicating this needs setup
-    res.status(501).json({
-      error: 'Google OAuth not configured. Set GOOGLE_CLIENT_ID in environment variables and configure OAuth consent screen.'
+  // Check if Google OAuth is configured
+  if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID === '' || GOOGLE_CLIENT_ID.includes('your-')) {
+    return res.status(501).json({
+      error: 'Google OAuth not configured. Set GOOGLE_CLIENT_ID in environment variables.'
     });
+  }
+
+  try {
+    const client = new OAuth2Client(GOOGLE_CLIENT_ID);
+
+    const ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: GOOGLE_CLIENT_ID
+    });
+
+    const payload = ticket.getPayload();
+    const email = payload.email;
+    const googleId = payload.sub;
+
+    // Check if user exists
+    let user = await pool.query(
+      'SELECT id, email FROM users WHERE email = $1 OR google_id = $2',
+      [email, googleId]
+    );
+
+    if (user.rows.length === 0) {
+      // Create new user with Google OAuth (no password required)
+      const result = await pool.query(
+        'INSERT INTO users (email, google_id, password_hash) VALUES ($1, $2, $3) RETURNING id, email',
+        [email, googleId, 'google-oauth-no-password']
+      );
+      user = result;
+    } else if (!user.rows[0].google_id) {
+      // Link existing account with Google
+      await pool.query(
+        'UPDATE users SET google_id = $1 WHERE email = $2',
+        [googleId, email]
+      );
+    }
+
+    const token = jwt.sign({
+      id: user.rows[0].id,
+      email: user.rows[0].email
+    }, JWT_SECRET);
+
+    res.json({ token, user: { id: user.rows[0].id, email: user.rows[0].email } });
   } catch (error) {
-    console.error('Error with Google login:', error);
-    res.status(500).json({ error: 'Failed to authenticate with Google' });
+    console.error('Google auth error:', error);
+    res.status(401).json({ error: 'Invalid Google token' });
   }
 });
 

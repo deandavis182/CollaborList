@@ -43,6 +43,7 @@ temp/
 *.key
 *.crt
 *.cer
+letsencrypt/
 
 # OS Files
 Thumbs.db

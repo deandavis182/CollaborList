@@ -117,6 +117,8 @@ Use their container services (ECS, Cloud Run, Container Instances) with the Dock
 
 ## Setting Up Google OAuth
 
+Google OAuth is already integrated into CollaborList! You just need to configure it with your Google Client ID.
+
 ### 1. Create a Google Cloud Project
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
@@ -142,70 +144,28 @@ Use their container services (ECS, Cloud Run, Container Instances) with the Dock
 4. Add authorized JavaScript origins:
    - For local: `http://localhost:3000`
    - For production: `https://collaborlist.com`
-5. Add authorized redirect URIs:
-   - For local: `http://localhost:3000/auth/google/callback`
-   - For production: `https://collaborlist.com/auth/google/callback`
+5. Add authorized redirect URIs (not required for implicit flow)
 6. Save and copy your Client ID
 
-### 4. Update Application
+### 4. Configure Your Application
 
-1. **Backend**: Add to `.env`:
+Add your Google Client ID to the environment variables:
+
+**Backend** (`.env`):
 ```env
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 ```
 
-2. **Frontend**: Update `RealtimeApp.jsx` to add Google Sign-In library:
-```html
-<!-- Add to index.html before closing </body> -->
-<script src="https://accounts.google.com/gsi/client" async defer></script>
+**Frontend** (`.env`):
+```env
+VITE_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 ```
 
-3. **Implement Google login** in backend `server.js`:
-```javascript
-// Replace the placeholder Google OAuth endpoint with:
-const { OAuth2Client } = require('google-auth-library');
-const client = new OAuth2Client(GOOGLE_CLIENT_ID);
-
-app.post('/api/auth/google', async (req, res) => {
-  const { credential } = req.body;
-
-  try {
-    const ticket = await client.verifyIdToken({
-      idToken: credential,
-      audience: GOOGLE_CLIENT_ID
-    });
-
-    const payload = ticket.getPayload();
-    const email = payload.email;
-    const googleId = payload.sub;
-
-    // Check if user exists
-    let user = await pool.query(
-      'SELECT id, email FROM users WHERE email = $1 OR google_id = $2',
-      [email, googleId]
-    );
-
-    if (user.rows.length === 0) {
-      // Create new user
-      const result = await pool.query(
-        'INSERT INTO users (email, google_id, password_hash) VALUES ($1, $2, $3) RETURNING id, email',
-        [email, googleId, 'google-oauth']
-      );
-      user = result;
-    }
-
-    const token = jwt.sign({
-      id: user.rows[0].id,
-      email: user.rows[0].email
-    }, JWT_SECRET);
-
-    res.json({ token, user: user.rows[0] });
-  } catch (error) {
-    console.error('Google auth error:', error);
-    res.status(401).json({ error: 'Invalid Google token' });
-  }
-});
-```
+That's it! The Google Sign-In button will automatically work once you've set your Client ID. The implementation handles:
+- Token verification
+- User creation/linking
+- Automatic login flow
+- Account merging for existing email addresses
 
 ## Environment Variables
 
