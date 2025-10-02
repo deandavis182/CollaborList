@@ -122,7 +122,7 @@ function App() {
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <h1 className="text-2xl font-bold text-gray-900">List Manager</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">List Manager</h1>
         </div>
       </header>
 
@@ -150,7 +150,7 @@ function App() {
 
               {/* Create List Form */}
               <div className="mb-4">
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="text"
                     value={newListName}
@@ -161,7 +161,7 @@ function App() {
                   />
                   <button
                     onClick={createList}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="px-3 sm:px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 whitespace-nowrap"
                   >
                     Add
                   </button>
@@ -219,7 +219,7 @@ function App() {
 
                   {/* Create Item Form */}
                   <div className="mb-4">
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <input
                         type="text"
                         value={newItemText}
@@ -230,7 +230,7 @@ function App() {
                       />
                       <button
                         onClick={createItem}
-                        className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500"
+                        className="px-3 sm:px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 whitespace-nowrap"
                       >
                         Add Item
                       </button>

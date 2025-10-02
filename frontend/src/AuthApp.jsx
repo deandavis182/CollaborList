@@ -321,13 +321,13 @@ function AuthApp() {
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-gray-900">List Manager</h1>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-600">{user?.email}</span>
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">List Manager</h1>
+            <div className="flex items-center gap-2 sm:gap-4">
+              <span className="text-sm text-gray-600 truncate max-w-[150px] sm:max-w-none">{user?.email}</span>
               <button
                 onClick={logout}
-                className="px-4 py-2 text-sm bg-gray-500 text-white rounded-md hover:bg-gray-600"
+                className="px-3 sm:px-4 py-1.5 sm:py-2 text-sm bg-gray-500 text-white rounded-md hover:bg-gray-600 whitespace-nowrap"
               >
                 Logout
               </button>
@@ -360,7 +360,7 @@ function AuthApp() {
 
               {/* Create List Form */}
               <div className="mb-4">
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="text"
                     value={newListName}
@@ -371,7 +371,7 @@ function AuthApp() {
                   />
                   <button
                     onClick={createList}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="px-3 sm:px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 whitespace-nowrap"
                   >
                     Add
                   </button>
@@ -434,7 +434,7 @@ function AuthApp() {
 
                   {/* Create Item Form */}
                   <div className="mb-4">
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <input
                         type="text"
                         value={newItemText}
@@ -445,7 +445,7 @@ function AuthApp() {
                       />
                       <button
                         onClick={createItem}
-                        className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500"
+                        className="px-3 sm:px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 whitespace-nowrap"
                       >
                         Add Item
                       </button>
@@ -493,7 +493,7 @@ function AuthApp() {
                   <div className="bg-white rounded-lg shadow p-6">
                     <h3 className="text-lg font-semibold mb-4">Share This List</h3>
 
-                    <div className="flex gap-2 mb-4">
+                    <div className="flex flex-col sm:flex-row gap-2 mb-4">
                       <input
                         type="email"
                         value={shareEmail}
@@ -501,20 +501,22 @@ function AuthApp() {
                         placeholder="Enter email to share..."
                         className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
-                      <select
-                        value={sharePermission}
-                        onChange={(e) => setSharePermission(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="view">View</option>
-                        <option value="edit">Edit</option>
-                      </select>
-                      <button
-                        onClick={shareList}
-                        className="px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600"
-                      >
-                        Share
-                      </button>
+                      <div className="flex gap-2">
+                        <select
+                          value={sharePermission}
+                          onChange={(e) => setSharePermission(e.target.value)}
+                          className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="view">View</option>
+                          <option value="edit">Edit</option>
+                        </select>
+                        <button
+                          onClick={shareList}
+                          className="px-3 sm:px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 whitespace-nowrap"
+                        >
+                          Share
+                        </button>
+                      </div>
                     </div>
 
                     {/* Current Shares */}
