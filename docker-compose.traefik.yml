@@ -1,0 +1,87 @@
+services:
+  traefik:
+    image: traefik:v2.10
+    container_name: traefik
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./letsencrypt:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - listapp-network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: listapp-db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-listapp}
+      POSTGRES_USER: ${DB_USER:-listuser}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./database/02-add-users.sql:/docker-entrypoint-initdb.d/02-add-users.sql
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - listapp-network
+    restart: always
+
+  backend:
+    build: ./backend
+    container_name: listapp-backend
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-listapp}
+      DB_USER: ${DB_USER:-listuser}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      PORT: 3001
+    depends_on:
+      - postgres
+    networks:
+      - listapp-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`${DOMAIN}`) && PathPrefix(`/api`, `/socket.io`)"
+      - "traefik.http.routers.backend.entrypoints=websecure"
+      - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.backend.loadbalancer.server.port=3001"
+    restart: always
+
+  frontend:
+    build: ./frontend
+    container_name: listapp-frontend
+    depends_on:
+      - backend
+    networks:
+      - listapp-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.routers.frontend-http.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.frontend-http.entrypoints=web"
+      - "traefik.http.routers.frontend-http.middlewares=redirect-to-https"
+    restart: always
+
+volumes:
+  postgres_data:
+
+networks:
+  listapp-network:
+    driver: bridge
