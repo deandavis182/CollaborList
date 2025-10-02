@@ -61,7 +61,10 @@ services:
     restart: always
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
     container_name: listapp-frontend
     depends_on:
       - backend

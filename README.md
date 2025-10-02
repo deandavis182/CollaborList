@@ -149,19 +149,13 @@ Google OAuth is already integrated into CollaborList! You just need to configure
 
 ### 4. Configure Your Application
 
-Add your Google Client ID to the environment variables:
+Add your Google Client ID to the **root `.env` file**:
 
-**Backend** (`.env`):
 ```env
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 ```
 
-**Frontend** (`.env`):
-```env
-VITE_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
-```
-
-That's it! The Google Sign-In button will automatically work once you've set your Client ID. The implementation handles:
+That's it! The Google Sign-In button will automatically work once you've set your Client ID in the root `.env` file. Docker Compose handles passing it to both frontend (at build time) and backend (at runtime). The implementation handles:
 - Token verification
 - User creation/linking
 - Automatic login flow
@@ -169,28 +163,29 @@ That's it! The Google Sign-In button will automatically work once you've set you
 
 ## Environment Variables
 
-### Development (.env.example)
-```env
-# Database
-DB_HOST=postgres
-DB_NAME=listapp
-DB_USER=listuser
-DB_PASSWORD=listpass
+You only need **one `.env` file in the project root** for both development and production.
 
-# Backend
-JWT_SECRET=development-secret
-PORT=3001
+### For Local Development
+Copy `.env.example` to `.env`:
+```bash
+cp .env.example .env
 ```
 
-### Production (.env)
+### For Production
+Copy `.env.production.example` to `.env`:
+```bash
+cp .env.production.example .env
+```
+
+Then edit `.env` with your values:
 ```env
-# Required
+# Required for production
 DOMAIN=collaborlist.com              # Your domain
 ACME_EMAIL=you@example.com          # For SSL certificates
 DB_PASSWORD=strong-password         # Database password
 JWT_SECRET=32-char-random-string    # JWT security
 
-# Optional
+# Optional (for Google Sign-In)
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 ```
 

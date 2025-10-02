@@ -29,6 +29,8 @@ services:
       DB_NAME: listapp
       DB_USER: listuser
       DB_PASSWORD: listpass
+      JWT_SECRET: ${JWT_SECRET:-development-secret}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       PORT: 3001
     ports:
       - "3001:3001"
@@ -40,7 +42,10 @@ services:
     restart: unless-stopped
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
     container_name: listapp-frontend
     ports:
       - "3000:80"

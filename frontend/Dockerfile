@@ -3,6 +3,12 @@ FROM node:18-alpine as builder
 
 WORKDIR /app
 
+# Accept build arguments
+ARG GOOGLE_CLIENT_ID
+
+# Set environment variable for Vite build
+ENV VITE_GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID
+
 COPY package.json ./
 RUN npm install
 
