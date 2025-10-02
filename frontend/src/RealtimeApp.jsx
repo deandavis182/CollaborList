@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
 import Logo from './components/Logo';
+import PrivacyPolicy from './components/PrivacyPolicy';
+import TermsOfService from './components/TermsOfService';
 
 const API_BASE = '/api';
 const WS_URL = window.location.hostname === 'localhost'
@@ -40,6 +42,9 @@ function RealtimeApp() {
   // Auth form state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  // Page navigation state
+  const [currentPage, setCurrentPage] = useState('main');
 
   // Socket ref
   const socketRef = useRef(null);
@@ -454,6 +459,16 @@ function RealtimeApp() {
 
   const isOwner = selectedList && user && selectedList.user_id === user.id;
 
+  // Show Privacy Policy
+  if (currentPage === 'privacy') {
+    return <PrivacyPolicy onBack={() => setCurrentPage('main')} />;
+  }
+
+  // Show Terms of Service
+  if (currentPage === 'terms') {
+    return <TermsOfService onBack={() => setCurrentPage('main')} />;
+  }
+
   // Auth View
   if (isAuthView) {
     return (
@@ -536,6 +551,23 @@ function RealtimeApp() {
 
           <div className="mt-4 text-center text-sm text-gray-600">
             Demo: test@example.com / test123
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-gray-200 text-center text-xs text-gray-500">
+            By using CollaborList, you agree to our
+            <button
+              onClick={() => setCurrentPage('terms')}
+              className="text-purple-600 hover:text-purple-700 mx-1 underline"
+            >
+              Terms of Service
+            </button>
+            and
+            <button
+              onClick={() => setCurrentPage('privacy')}
+              className="text-purple-600 hover:text-purple-700 mx-1 underline"
+            >
+              Privacy Policy
+            </button>
           </div>
         </div>
       </div>
