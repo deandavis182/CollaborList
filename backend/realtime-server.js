@@ -502,7 +502,7 @@ app.post('/api/lists/:listId/items', authenticateToken, async (req, res) => {
 
 app.put('/api/items/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const { text, completed, position } = req.body;
+  const { text, completed, position, notes } = req.body;
 
   try {
     // Check edit permission through list
@@ -543,6 +543,10 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
     if (position !== undefined) {
       query += `, position = $${paramCount++}`;
       params.push(position);
+    }
+    if (notes !== undefined) {
+      query += `, notes = $${paramCount++}`;
+      params.push(notes);
     }
 
     query += ` WHERE id = $${paramCount} RETURNING *`;
