@@ -139,12 +139,25 @@ function RealtimeApp() {
     socket.on('item-created', (data) => {
       if (selectedListRef.current?.id == data.listId) {
         setItems(prev => {
-          // Check if item already exists (from optimistic update)
+          // Check if item already exists (from optimistic update or HTTP response)
           const existingItem = prev.find(item => item.id === data.item.id);
           if (existingItem) {
-            // Replace with server version to ensure consistency
-            return prev.map(item => item.id === data.item.id ? data.item : item);
+            // Already have this item (HTTP response arrived first), no action needed
+            return prev;
           }
+
+          // Check for temp item from optimistic update (socket arrived before HTTP response)
+          const tempItem = prev.find(item =>
+            typeof item.id === 'string' &&
+            item.id.startsWith('temp-') &&
+            item.text === data.item.text
+          );
+
+          if (tempItem) {
+            // Replace temp item with real one from server
+            return prev.map(item => item.id === tempItem.id ? data.item : item);
+          }
+
           // Add new item for other users
           return [...prev, data.item].sort((a, b) => a.position - b.position);
         });
