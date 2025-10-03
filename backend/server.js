@@ -540,7 +540,7 @@ app.get('/api/lists/:listId/items', authenticateToken, async (req, res) => {
 
 app.post('/api/lists/:listId/items', authenticateToken, async (req, res) => {
   const { listId } = req.params;
-  let { text, completed = false } = req.body;
+  let { text, completed = false, notes = '' } = req.body;
 
   // Sanitize input
   text = sanitizeInput(text);
@@ -577,8 +577,8 @@ app.post('/api/lists/:listId/items', authenticateToken, async (req, res) => {
     const nextPosition = posResult.rows[0].next_position;
 
     const result = await pool.query(
-      'INSERT INTO list_items (list_id, text, completed, position) VALUES ($1, $2, $3, $4) RETURNING *',
-      [listId, text, completed, nextPosition]
+      'INSERT INTO list_items (list_id, text, completed, position, notes) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [listId, text, completed, nextPosition, notes]
     );
 
     const newItem = result.rows[0];
@@ -595,7 +595,7 @@ app.post('/api/lists/:listId/items', authenticateToken, async (req, res) => {
 
 app.put('/api/items/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  let { text, completed, position } = req.body;
+  let { text, completed, position, notes } = req.body;
 
   // Sanitize text input if provided
   if (text !== undefined) {
@@ -644,6 +644,10 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
     if (position !== undefined) {
       query += `, position = $${paramCount++}`;
       params.push(position);
+    }
+    if (notes !== undefined) {
+      query += `, notes = $${paramCount++}`;
+      params.push(notes);
     }
 
     query += ` WHERE id = $${paramCount} RETURNING *`;
