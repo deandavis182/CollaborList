@@ -728,6 +728,68 @@ function checkProductionSecurity() {
   }
 }
 
+// Database migrations - add new migrations here
+const migrations = [
+  {
+    name: '001_add_notes_column',
+    sql: `ALTER TABLE list_items ADD COLUMN IF NOT EXISTS notes TEXT`
+  },
+  // Add future migrations here with incrementing numbers, e.g.:
+  // {
+  //   name: '002_add_tags_table',
+  //   sql: `CREATE TABLE IF NOT EXISTS tags (...)`
+  // },
+];
+
+// Run database migrations
+async function runMigrations() {
+  try {
+    // Create migrations table if it doesn't exist
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS migrations (
+        name VARCHAR(255) PRIMARY KEY,
+        applied_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    // Check and apply each migration
+    for (const migration of migrations) {
+      const result = await pool.query(
+        'SELECT name FROM migrations WHERE name = $1',
+        [migration.name]
+      );
+
+      if (result.rows.length === 0) {
+        console.log(`Applying migration: ${migration.name}`);
+
+        // Run migration in a transaction
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          await client.query(migration.sql);
+          await client.query(
+            'INSERT INTO migrations (name) VALUES ($1)',
+            [migration.name]
+          );
+          await client.query('COMMIT');
+          console.log(`✅ Migration ${migration.name} applied successfully`);
+        } catch (err) {
+          await client.query('ROLLBACK');
+          console.error(`Failed to apply migration ${migration.name}:`, err.message);
+          // Continue with other migrations instead of exiting
+        } finally {
+          client.release();
+        }
+      }
+    }
+
+    console.log('All migrations checked/applied');
+  } catch (error) {
+    console.error('Error running migrations:', error);
+    // Don't exit - allow server to start even if migrations fail
+  }
+}
+
 // Initialize database and start server
 async function initializeDatabase() {
   try {
@@ -777,6 +839,9 @@ async function initializeDatabase() {
     `);
 
     console.log('Database tables created/verified');
+
+    // Run migrations after tables are created
+    await runMigrations();
   } catch (error) {
     console.error('Error initializing database:', error);
     process.exit(1);
