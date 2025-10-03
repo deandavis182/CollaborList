@@ -137,7 +137,7 @@ function RealtimeApp() {
     });
 
     socket.on('item-created', (data) => {
-      if (selectedListRef.current?.id === data.listId) {
+      if (selectedListRef.current?.id == data.listId) {
         setItems(prev => {
           // Check if item already exists (from optimistic update)
           const existingItem = prev.find(item => item.id === data.item.id);
@@ -152,13 +152,12 @@ function RealtimeApp() {
     });
 
     socket.on('item-updated', (data) => {
-      if (selectedListRef.current?.id === data.listId) {
+      if (selectedListRef.current?.id == data.listId) {
         setItems(prev => prev.map(item => {
           if (item.id === data.item.id) {
-            // If user is actively editing notes for this item, preserve their edits
-            // but update everything else
-            const isEditingThisItem = editingNotesRef.current[item.id] !== undefined;
-            if (isEditingThisItem) {
+            // Only preserve local notes if user is ACTIVELY TYPING (has pending debounce)
+            const hasPendingNotesUpdate = notesDebounceTimeout.current[item.id] !== undefined;
+            if (hasPendingNotesUpdate) {
               // Keep local notes, update everything else
               return { ...data.item, notes: item.notes };
             }
@@ -167,11 +166,11 @@ function RealtimeApp() {
           return item;
         }));
 
-        // Update the editing notes state if not actively editing
+        // Update the editing notes state if not actively typing
         setEditingNotes(prev => {
-          const isEditingThisItem = prev[data.item.id] !== undefined;
-          if (!isEditingThisItem && expandedNotesRef.current[data.item.id]) {
-            // If notes are expanded but not being edited, sync the notes
+          const hasPendingNotesUpdate = notesDebounceTimeout.current[data.item.id] !== undefined;
+          if (!hasPendingNotesUpdate && expandedNotesRef.current[data.item.id]) {
+            // If notes are expanded but user is not typing, sync the notes
             return { ...prev, [data.item.id]: data.item.notes || '' };
           }
           return prev;
@@ -180,11 +179,10 @@ function RealtimeApp() {
     });
 
     socket.on('item-deleted', (data) => {
-      if (selectedListRef.current?.id === data.listId) {
+      if (selectedListRef.current?.id == data.listId) {
         setItems(prev => {
-          // Remove the item if it exists
-          const filtered = prev.filter(item => item.id !== data.itemId);
-          // Only update if the item was actually found and removed
+          // Remove the item if it exists (handle both string and number IDs)
+          const filtered = prev.filter(item => item.id != data.itemId);
           return filtered.length !== prev.length ? filtered : prev;
         });
 
@@ -560,6 +558,8 @@ function RealtimeApp() {
     // Set a new timeout to save after 500ms of no typing
     notesDebounceTimeout.current[itemId] = setTimeout(() => {
       updateItemNotes(itemId, notes);
+      // Clear the timeout reference after saving
+      delete notesDebounceTimeout.current[itemId];
     }, 500);
   };
 
