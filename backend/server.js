@@ -540,7 +540,7 @@ app.get('/api/lists/:listId/items', authenticateToken, async (req, res) => {
 
 app.post('/api/lists/:listId/items', authenticateToken, async (req, res) => {
   const { listId } = req.params;
-  let { text, completed = false, notes = '' } = req.body;
+  let { text, completed = false, notes = '', parent_id = null } = req.body;
 
   // Sanitize input
   text = sanitizeInput(text);
@@ -570,15 +570,27 @@ app.post('/api/lists/:listId/items', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'No edit permission' });
     }
 
+    // If parent_id is provided, verify it exists and belongs to the same list
+    if (parent_id) {
+      const parentCheck = await pool.query(
+        'SELECT id FROM list_items WHERE id = $1 AND list_id = $2',
+        [parent_id, listId]
+      );
+      if (parentCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Invalid parent item' });
+      }
+    }
+
+    // Calculate position based on parent context
     const posResult = await pool.query(
-      'SELECT COALESCE(MAX(position), 0) + 1 as next_position FROM list_items WHERE list_id = $1',
-      [listId]
+      'SELECT COALESCE(MAX(position), 0) + 1 as next_position FROM list_items WHERE list_id = $1 AND parent_id IS NOT DISTINCT FROM $2',
+      [listId, parent_id]
     );
     const nextPosition = posResult.rows[0].next_position;
 
     const result = await pool.query(
-      'INSERT INTO list_items (list_id, text, completed, position, notes) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [listId, text, completed, nextPosition, notes]
+      'INSERT INTO list_items (list_id, text, completed, position, notes, parent_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [listId, text, completed, nextPosition, notes, parent_id]
     );
 
     const newItem = result.rows[0];
@@ -595,7 +607,7 @@ app.post('/api/lists/:listId/items', authenticateToken, async (req, res) => {
 
 app.put('/api/items/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  let { text, completed, position, notes } = req.body;
+  let { text, completed, position, notes, parent_id } = req.body;
 
   // Sanitize text input if provided
   if (text !== undefined) {
@@ -629,6 +641,22 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
 
     const listId = permCheck.rows[0].list_id;
 
+    // If parent_id is being updated, verify it exists and belongs to the same list
+    // Also prevent circular references (item cannot be its own parent or descendant)
+    if (parent_id !== undefined && parent_id !== null) {
+      const parentCheck = await pool.query(
+        'SELECT id FROM list_items WHERE id = $1 AND list_id = $2',
+        [parent_id, listId]
+      );
+      if (parentCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Invalid parent item' });
+      }
+      // Prevent self-reference
+      if (parent_id == id) {
+        return res.status(400).json({ error: 'Item cannot be its own parent' });
+      }
+    }
+
     let query = 'UPDATE list_items SET updated_at = NOW()';
     const params = [];
     let paramCount = 1;
@@ -648,6 +676,10 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
     if (notes !== undefined) {
       query += `, notes = $${paramCount++}`;
       params.push(notes);
+    }
+    if (parent_id !== undefined) {
+      query += `, parent_id = $${paramCount++}`;
+      params.push(parent_id);
     }
 
     query += ` WHERE id = $${paramCount} RETURNING *`;
@@ -734,9 +766,17 @@ const migrations = [
     name: '001_add_notes_column',
     sql: `ALTER TABLE list_items ADD COLUMN IF NOT EXISTS notes TEXT`
   },
+  {
+    name: '002_add_parent_id_column',
+    sql: `
+      ALTER TABLE list_items ADD COLUMN IF NOT EXISTS parent_id INTEGER REFERENCES list_items(id) ON DELETE CASCADE;
+      CREATE INDEX IF NOT EXISTS idx_list_items_parent_id ON list_items(parent_id);
+      CREATE INDEX IF NOT EXISTS idx_list_items_list_parent ON list_items(list_id, parent_id);
+    `
+  },
   // Add future migrations here with incrementing numbers, e.g.:
   // {
-  //   name: '002_add_tags_table',
+  //   name: '003_add_tags_table',
   //   sql: `CREATE TABLE IF NOT EXISTS tags (...)`
   // },
 ];

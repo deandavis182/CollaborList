@@ -10,6 +10,7 @@ services:
       - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql
       - ./database/02-add-users.sql:/docker-entrypoint-initdb.d/02-add-users.sql
       - ./database/03-add-notes.sql:/docker-entrypoint-initdb.d/03-add-notes.sql
+      - ./database/04-add-parent-id.sql:/docker-entrypoint-initdb.d/04-add-parent-id.sql
       - postgres_data:/var/lib/postgresql/data
     networks:
       - listapp-network

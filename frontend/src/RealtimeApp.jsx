@@ -51,6 +51,11 @@ function RealtimeApp() {
   const [savingNotes, setSavingNotes] = useState({});
   const notesDebounceTimeout = useRef({});
 
+  // Hierarchy state
+  const [expandedItems, setExpandedItems] = useState({});
+  const [addingSubItemTo, setAddingSubItemTo] = useState(null);
+  const [newSubItemText, setNewSubItemText] = useState('');
+
   // Auth form state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -399,9 +404,12 @@ function RealtimeApp() {
     try {
       const response = await axios.get(`${API_BASE}/lists/${listId}/items`);
       setItems(response.data);
-      // Clear notes state when loading new items
+      // Clear state when loading new items
       setEditingNotes({});
       setExpandedNotes({});
+      setExpandedItems({});
+      setAddingSubItemTo(null);
+      setNewSubItemText('');
     } catch (err) {
       setError('Failed to fetch items');
     } finally {
@@ -475,37 +483,56 @@ function RealtimeApp() {
     }
   };
 
-  const createItem = async () => {
-    if (!newItemText.trim() || !selectedList) return;
+  const createItem = async (parentId = null) => {
+    const textToUse = parentId ? newSubItemText : newItemText;
+    if (!textToUse.trim() || !selectedList) return;
 
     // Create a temporary item for optimistic update
     const tempItem = {
       id: `temp-${Date.now()}`,
-      text: newItemText,
+      text: textToUse,
       completed: false,
       list_id: selectedList.id,
-      position: items.length
+      position: items.length,
+      parent_id: parentId
     };
 
     // Optimistic update - add temporary item immediately
     setItems(prev => [...prev, tempItem]);
-    const savedText = newItemText;
-    setNewItemText('');
+    const savedText = textToUse;
+
+    if (parentId) {
+      setNewSubItemText('');
+      setAddingSubItemTo(null);
+    } else {
+      setNewItemText('');
+    }
 
     try {
       const response = await axios.post(`${API_BASE}/lists/${selectedList.id}/items`, {
         text: savedText,
-        completed: false
+        completed: false,
+        parent_id: parentId
       });
 
       // Replace temporary item with real one from server
       setItems(prev => prev.map(item =>
         item.id === tempItem.id ? response.data : item
       ));
+
+      // Ensure parent is expanded when adding sub-item
+      if (parentId) {
+        setExpandedItems(prev => ({ ...prev, [parentId]: true }));
+      }
     } catch (err) {
       // Rollback on error - remove temporary item
       setItems(prev => prev.filter(item => item.id !== tempItem.id));
-      setNewItemText(savedText); // Restore the text
+
+      if (parentId) {
+        setNewSubItemText(savedText);
+      } else {
+        setNewItemText(savedText);
+      }
 
       if (err.response?.status === 403) {
         setError('You only have view permission for this list');
@@ -513,6 +540,35 @@ function RealtimeApp() {
         setError('Failed to create item');
       }
     }
+  };
+
+  // Helper function to organize items hierarchically
+  const organizeItems = (items) => {
+    const itemMap = {};
+    const rootItems = [];
+
+    // First pass: create a map of all items
+    items.forEach(item => {
+      itemMap[item.id] = { ...item, children: [] };
+    });
+
+    // Second pass: build the hierarchy
+    items.forEach(item => {
+      if (item.parent_id && itemMap[item.parent_id]) {
+        itemMap[item.parent_id].children.push(itemMap[item.id]);
+      } else {
+        rootItems.push(itemMap[item.id]);
+      }
+    });
+
+    return rootItems;
+  };
+
+  const toggleItemExpanded = (itemId) => {
+    setExpandedItems(prev => ({
+      ...prev,
+      [itemId]: !prev[itemId]
+    }));
   };
 
   const toggleItemComplete = async (item) => {
@@ -950,72 +1006,166 @@ function RealtimeApp() {
 
                   {/* Items List */}
                   <div className="space-y-2">
-                    {items.map(item => (
-                      <div
-                        key={item.id}
-                        className="p-3 bg-gray-50 rounded-md border border-gray-200 hover:bg-gray-100 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center flex-1">
-                            <input
-                              type="checkbox"
-                              checked={item.completed}
-                              onChange={() => toggleItemComplete(item)}
-                              className="mr-3 h-5 w-5 text-blue-600 rounded focus:ring-blue-500"
-                            />
-                            <span className={`flex-1 ${item.completed ? 'line-through text-gray-500' : 'text-gray-900'}`}>
-                              {item.text}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {/* Notes toggle button */}
-                            <button
-                              onClick={() => toggleNotesExpanded(item.id)}
-                              className={`text-gray-500 hover:text-gray-700 p-1 ${item.notes || expandedNotes[item.id] ? 'text-blue-500' : ''}`}
-                              title={expandedNotes[item.id] ? 'Hide notes' : 'Add/view notes'}
+                    {(() => {
+                      const renderItem = (item, depth = 0) => {
+                        const hasChildren = item.children && item.children.length > 0;
+                        const isExpanded = expandedItems[item.id] !== false; // default to expanded
+
+                        // Visual styling based on depth
+                        const bgColors = ['bg-gray-50', 'bg-blue-50', 'bg-green-50'];
+                        const borderColors = ['border-gray-200', 'border-blue-200', 'border-green-200'];
+                        const bgColor = bgColors[Math.min(depth, bgColors.length - 1)];
+                        const borderColor = borderColors[Math.min(depth, borderColors.length - 1)];
+
+                        return (
+                          <div key={item.id} className="space-y-2">
+                            <div
+                              style={{
+                                marginLeft: `${depth * 24}px`,
+                                borderLeftWidth: depth > 0 ? '3px' : '0',
+                                borderLeftColor: depth > 0 ? 'rgb(59, 130, 246)' : 'transparent'
+                              }}
+                              className={`p-3 ${bgColor} rounded-md border ${borderColor} hover:shadow-sm transition-all`}
                             >
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => deleteItem(item.id)}
-                              className="text-red-500 hover:text-red-700 p-1"
-                            >
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                        {/* Notes section */}
-                        {expandedNotes[item.id] && (
-                          <div className="mt-3 pt-3 border-t border-gray-200">
-                            <div className="relative">
-                              <textarea
-                                value={editingNotes[item.id] !== undefined ? editingNotes[item.id] : (item.notes || '')}
-                                onChange={(e) => handleNotesChange(item.id, e.target.value)}
-                                placeholder="Add notes..."
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                                rows="3"
-                              />
-                              {savingNotes[item.id] && (
-                                <div className="absolute top-2 right-2 text-xs text-gray-500 flex items-center gap-1">
-                                  <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                  </svg>
-                                  Saving...
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center flex-1 gap-2">
+                                  {/* Expand/Collapse button for items with children */}
+                                  {hasChildren && (
+                                    <button
+                                      onClick={() => toggleItemExpanded(item.id)}
+                                      className="text-gray-500 hover:text-gray-700 p-1"
+                                      title={isExpanded ? 'Collapse' : 'Expand'}
+                                    >
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        {isExpanded ? (
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        ) : (
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                        )}
+                                      </svg>
+                                    </button>
+                                  )}
+                                  {!hasChildren && <div className="w-6" />}
+
+                                  <input
+                                    type="checkbox"
+                                    checked={item.completed}
+                                    onChange={() => toggleItemComplete(item)}
+                                    className="h-5 w-5 text-blue-600 rounded focus:ring-blue-500"
+                                  />
+                                  <span className={`flex-1 ${item.completed ? 'line-through text-gray-500' : 'text-gray-900'}`}>
+                                    {item.text}
+                                  </span>
+                                  {hasChildren && (
+                                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                                      {item.children.length}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {/* Add Sub-Item button */}
+                                  <button
+                                    onClick={() => setAddingSubItemTo(item.id)}
+                                    className="text-green-500 hover:text-green-700 p-1"
+                                    title="Add sub-item"
+                                  >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                    </svg>
+                                  </button>
+                                  {/* Notes toggle button */}
+                                  <button
+                                    onClick={() => toggleNotesExpanded(item.id)}
+                                    className={`text-gray-500 hover:text-gray-700 p-1 ${item.notes || expandedNotes[item.id] ? 'text-yellow-500' : ''}`}
+                                    title={expandedNotes[item.id] ? 'Hide notes' : 'Add/view notes'}
+                                  >
+                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                      <path d="M20 3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11l5-5V5c0-1.1-.9-2-2-2zm-1 14.5l-3.5 3.5H4V5h16v12.5z"/>
+                                      <path d="M6 10h8v2H6zm0-3h10v2H6zm0 6h6v2H6z"/>
+                                    </svg>
+                                  </button>
+                                  <button
+                                    onClick={() => deleteItem(item.id)}
+                                    className="text-red-500 hover:text-red-700 p-1"
+                                  >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Add Sub-Item Form */}
+                              {addingSubItemTo === item.id && (
+                                <div className="mt-3 pt-3 border-t border-gray-200">
+                                  <div className="flex gap-2">
+                                    <input
+                                      type="text"
+                                      value={newSubItemText}
+                                      onChange={(e) => setNewSubItemText(e.target.value)}
+                                      onKeyPress={(e) => e.key === 'Enter' && createItem(item.id)}
+                                      placeholder="Add sub-item..."
+                                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+                                      autoFocus
+                                    />
+                                    <button
+                                      onClick={() => createItem(item.id)}
+                                      className="px-3 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 text-sm"
+                                    >
+                                      Add
+                                    </button>
+                                    <button
+                                      onClick={() => { setAddingSubItemTo(null); setNewSubItemText(''); }}
+                                      className="px-3 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 text-sm"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Notes section */}
+                              {expandedNotes[item.id] && (
+                                <div className="mt-3 pt-3 border-t border-gray-200">
+                                  <div className="relative">
+                                    <textarea
+                                      value={editingNotes[item.id] !== undefined ? editingNotes[item.id] : (item.notes || '')}
+                                      onChange={(e) => handleNotesChange(item.id, e.target.value)}
+                                      placeholder="Add notes..."
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                                      rows="3"
+                                    />
+                                    {savingNotes[item.id] && (
+                                      <div className="absolute top-2 right-2 text-xs text-gray-500 flex items-center gap-1">
+                                        <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        Saving...
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               )}
                             </div>
+
+                            {/* Render children */}
+                            {hasChildren && isExpanded && (
+                              <div>
+                                {item.children.map(child => renderItem(child, depth + 1))}
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    ))}
-                    {items.length === 0 && !isLoading && (
-                      <p className="text-gray-500 text-center py-4">No items in this list</p>
-                    )}
+                        );
+                      };
+
+                      const organizedItems = organizeItems(items);
+                      return organizedItems.length > 0
+                        ? organizedItems.map(item => renderItem(item))
+                        : !isLoading && (
+                            <p className="text-gray-500 text-center py-4">No items in this list</p>
+                          );
+                    })()}
                   </div>
                 </div>
 
