@@ -37,8 +37,8 @@ const createSecurityMiddleware = (app, cors, JWT_SECRET) => {
   // Simple rate limiting implementation (without external package)
   const requestCounts = new Map();
   const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
-  const MAX_REQUESTS = 100; // 100 requests per window
-  const MAX_AUTH_REQUESTS = 5; // 5 auth attempts per window
+  const MAX_REQUESTS = 500; // 500 requests per window (increased for active collaboration)
+  const MAX_AUTH_REQUESTS = 10; // 10 auth attempts per window (slightly increased for legitimate retries)
 
   app.use((req, res, next) => {
     const ip = req.ip || req.connection.remoteAddress;
@@ -46,14 +46,34 @@ const createSecurityMiddleware = (app, cors, JWT_SECRET) => {
     const isAuthRoute = req.path.includes('/auth/');
     const limit = isAuthRoute ? MAX_AUTH_REQUESTS : MAX_REQUESTS;
 
-    // Clean up old entries
-    for (const [key, data] of requestCounts.entries()) {
-      if (now - data.windowStart > RATE_LIMIT_WINDOW) {
-        requestCounts.delete(key);
+    // Determine rate limit key: prefer user ID from JWT, fall back to IP
+    let rateLimitKey = ip;
+    const authHeader = req.headers['authorization'];
+    if (authHeader) {
+      const token = authHeader.split(' ')[1];
+      if (token) {
+        try {
+          const decoded = require('jsonwebtoken').verify(token, JWT_SECRET);
+          rateLimitKey = `user-${decoded.id}`; // Per-user rate limiting
+        } catch (err) {
+          // Invalid token, fall back to IP-based limiting
+          rateLimitKey = `ip-${ip}`;
+        }
+      }
+    } else {
+      rateLimitKey = `ip-${ip}`;
+    }
+
+    // Clean up old entries periodically
+    if (requestCounts.size > 1000) { // Prevent memory bloat
+      for (const [key, data] of requestCounts.entries()) {
+        if (now - data.windowStart > RATE_LIMIT_WINDOW) {
+          requestCounts.delete(key);
+        }
       }
     }
 
-    const key = `${ip}:${isAuthRoute ? 'auth' : 'api'}`;
+    const key = `${rateLimitKey}:${isAuthRoute ? 'auth' : 'api'}`;
     let requestData = requestCounts.get(key);
 
     if (!requestData) {
@@ -70,8 +90,13 @@ const createSecurityMiddleware = (app, cors, JWT_SECRET) => {
     requestData.count++;
 
     if (requestData.count > limit) {
+      const resetTime = new Date(requestData.windowStart + RATE_LIMIT_WINDOW);
+      const minutesRemaining = Math.ceil((resetTime - now) / 60000);
+
       return res.status(429).json({
-        error: 'Too many requests. Please try again later.'
+        error: 'Too many requests. Please try again later.',
+        retryAfter: minutesRemaining,
+        message: `Rate limit exceeded. Please wait ${minutesRemaining} minute(s) before trying again.`
       });
     }
 

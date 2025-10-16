@@ -33,7 +33,12 @@ git clone https://github.com/yourusername/collaborlist.git
 cd collaborlist
 ```
 
-### 2. Start with Docker Compose
+### 2. Configure Environment
+```bash
+cp .env.example .env
+```
+
+### 3. Start with Docker Compose
 ```bash
 docker-compose up -d
 ```

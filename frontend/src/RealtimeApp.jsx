@@ -4,6 +4,23 @@ import { io } from 'socket.io-client';
 import Logo from './components/Logo';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import TermsOfService from './components/TermsOfService';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+  pointerWithin,
+  rectIntersection,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 const API_BASE = '/api';
 // Use relative path for WebSocket to go through nginx proxy
@@ -23,6 +40,42 @@ const setAuthHeader = (token) => {
     delete axios.defaults.headers.common['X-CSRF-Token'];
   }
 };
+
+// Sortable Item Component
+function SortableItem({ id, children, canEdit }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id, disabled: !canEdit });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children(attributes, listeners, isDragging)}
+    </div>
+  );
+}
+
+// Droppable zone component for making items drop targets
+function DroppableItem({ id, children, isOver }) {
+  return (
+    <div
+      id={id}
+      className={`${isOver ? 'ring-2 ring-blue-400 ring-opacity-50' : ''}`}
+    >
+      {children}
+    </div>
+  );
+}
 
 function RealtimeApp() {
   // Auth state
@@ -56,6 +109,10 @@ function RealtimeApp() {
   const [addingSubItemTo, setAddingSubItemTo] = useState(null);
   const [newSubItemText, setNewSubItemText] = useState('');
 
+  // Drag and drop state
+  const [activeId, setActiveId] = useState(null);
+  const [overId, setOverId] = useState(null);
+
   // Auth form state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -68,6 +125,7 @@ function RealtimeApp() {
   const selectedListRef = useRef(null);
   const editingNotesRef = useRef({});
   const expandedNotesRef = useRef({});
+  const lastFetchListsTime = useRef(0); // Track last fetchLists() call to prevent rapid requests
 
   useEffect(() => {
     // Check if Google OAuth is configured
@@ -121,7 +179,20 @@ function RealtimeApp() {
 
     // Real-time event listeners
     socket.on('list-created', (data) => {
-      fetchLists();
+      // Use WebSocket payload instead of making HTTP call
+      if (data && data.id) {
+        setLists(prev => {
+          // Check if list already exists
+          const exists = prev.some(list => list.id === data.id);
+          if (!exists) {
+            return [data, ...prev];
+          }
+          return prev;
+        });
+      } else {
+        // Fallback if payload is incomplete
+        fetchLists();
+      }
     });
 
     socket.on('list-updated', (data) => {
@@ -225,7 +296,8 @@ function RealtimeApp() {
 
     socket.on('list-shared', (data) => {
       if (data.userId === user?.id) {
-        // Refresh lists if someone shared a list with us
+        // Only refresh lists if someone actually shared a NEW list with us
+        // This prevents unnecessary API calls when permissions are just updated
         fetchLists();
       }
       if (selectedList?.id === data.listId) {
@@ -384,15 +456,30 @@ function RealtimeApp() {
   };
 
   // List functions
-  const fetchLists = async () => {
+  const fetchLists = async (force = false) => {
+    const now = Date.now();
+    const timeSinceLastFetch = now - lastFetchListsTime.current;
+
+    // Skip if fetched within last 5 seconds (unless forced)
+    if (!force && timeSinceLastFetch < 5000) {
+      console.log('Skipping fetchLists() - called too recently');
+      return;
+    }
+
+    lastFetchListsTime.current = now;
     setIsLoading(true);
     try {
       const response = await axios.get(`${API_BASE}/lists`);
       setLists(response.data);
     } catch (err) {
-      setError('Failed to fetch lists');
-      if (err.response?.status === 401) {
+      // Better error handling for rate limiting
+      if (err.response?.status === 429) {
+        const retryAfter = err.response.data?.retryAfter || 15;
+        setError(`Too many requests. Please wait ${retryAfter} minute(s) before trying again. Try logging out and back in to reset.`);
+      } else if (err.response?.status === 401) {
         logout();
+      } else {
+        setError('Failed to fetch lists');
       }
     } finally {
       setIsLoading(false);
@@ -411,7 +498,12 @@ function RealtimeApp() {
       setAddingSubItemTo(null);
       setNewSubItemText('');
     } catch (err) {
-      setError('Failed to fetch items');
+      if (err.response?.status === 429) {
+        const retryAfter = err.response.data?.retryAfter || 15;
+        setError(`Too many requests. Please wait ${retryAfter} minute(s). Try logging out and back in to reset.`);
+      } else {
+        setError('Failed to fetch items');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -561,6 +653,18 @@ function RealtimeApp() {
       }
     });
 
+    // Third pass: sort items by position (recursively)
+    const sortByPosition = (itemList) => {
+      itemList.sort((a, b) => a.position - b.position);
+      itemList.forEach(item => {
+        if (item.children && item.children.length > 0) {
+          sortByPosition(item.children);
+        }
+      });
+    };
+
+    sortByPosition(rootItems);
+
     return rootItems;
   };
 
@@ -691,6 +795,164 @@ function RealtimeApp() {
         setError('Failed to delete item');
       }
     }
+  };
+
+  // Configure drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 8px of movement required before drag starts
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200, // 200ms hold before drag starts on touch
+        tolerance: 5,
+      },
+    })
+  );
+
+  // Drag and drop handlers
+  const handleDragStart = (event) => {
+    setActiveId(event.active.id);
+  };
+
+  const handleDragOver = (event) => {
+    setOverId(event.over?.id);
+  };
+
+  const handleDragEnd = async (event) => {
+    const { active, over, activatorEvent, delta } = event;
+
+    setActiveId(null);
+    setOverId(null);
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    const activeItem = items.find(item => item.id === active.id);
+    const overItem = items.find(item => item.id === over.id);
+
+    if (!activeItem) {
+      return;
+    }
+
+    try {
+      if (!overItem) {
+        // Dropped on empty space or list - do nothing for now
+        return;
+      }
+
+      // Prevent dropping an item onto itself or its own descendants
+      if (activeItem.id === overItem.id) {
+        return;
+      }
+
+      // Check if overItem is a descendant of activeItem (would create circular reference)
+      const isDescendant = (parentItem, childItem) => {
+        if (!childItem.parent_id) return false;
+        if (childItem.parent_id === parentItem.id) return true;
+        const parent = items.find(i => i.id === childItem.parent_id);
+        return parent ? isDescendant(parentItem, parent) : false;
+      };
+
+      if (isDescendant(activeItem, overItem)) {
+        setError('Cannot move item into its own sub-item');
+        return;
+      }
+
+      // Determine if we should nest or make sibling based on:
+      // 1. Shift key (desktop)
+      // 2. Drop position - dropping on right side nests (mobile-friendly)
+      const shiftKey = activatorEvent?.shiftKey || false;
+
+      // Check horizontal position - if dragged significantly to the right, nest it
+      // This works on both desktop and mobile
+      const shouldNest = shiftKey || (delta && delta.x > 40);
+
+      if (shouldNest) {
+        // Nest as sub-item
+        await axios.put(`${API_BASE}/items/${activeItem.id}`, {
+          parent_id: overItem.id,
+          list_id: overItem.list_id
+        });
+        // Expand the parent to show the new child
+        setExpandedItems(prev => ({ ...prev, [overItem.id]: true }));
+        return;
+      }
+
+      // Default behavior: move to same level as over item (make them siblings)
+      const newParentId = overItem.parent_id;
+
+      // Determine if dropping above or below based on vertical drag delta
+      // Negative delta.y means dragging upward (drop above), positive means downward (drop below)
+      const droppingAbove = delta && delta.y < 0;
+
+      // Calculate position using integers with gaps (position is INTEGER in DB)
+      // Get all siblings at the same level to find surrounding positions
+      const siblings = items
+        .filter(item => item.parent_id === newParentId)
+        .sort((a, b) => a.position - b.position);
+
+      const overIndex = siblings.findIndex(s => s.id === overItem.id);
+      let newPosition;
+
+      const GAP = 1000; // Use large gaps to allow many insertions before rebalancing needed
+
+      if (droppingAbove) {
+        // Dropping above: insert before the target item
+        if (overIndex === 0) {
+          // Dropping before the first item
+          newPosition = Math.max(0, overItem.position - GAP);
+        } else {
+          // Insert between previous item and target item
+          const prevItem = siblings[overIndex - 1];
+          const midpoint = Math.floor((prevItem.position + overItem.position) / 2);
+          // If no room, place right after previous item
+          newPosition = midpoint === prevItem.position ? prevItem.position + 1 : midpoint;
+        }
+      } else {
+        // Dropping below: insert after the target item
+        if (overIndex === siblings.length - 1) {
+          // Dropping after the last item
+          newPosition = overItem.position + GAP;
+        } else {
+          // Insert between target item and next item
+          const nextItem = siblings[overIndex + 1];
+          const midpoint = Math.floor((overItem.position + nextItem.position) / 2);
+          // If no room, place right before next item
+          newPosition = midpoint === overItem.position ? overItem.position + 1 : midpoint;
+        }
+      }
+
+      // Only update if something actually changed
+      if (activeItem.parent_id !== newParentId || activeItem.position !== newPosition) {
+        await axios.put(`${API_BASE}/items/${activeItem.id}`, {
+          parent_id: newParentId,
+          position: newPosition,
+          list_id: overItem.list_id
+        });
+
+        // If moved to a different parent, expand it
+        if (newParentId && newParentId !== activeItem.parent_id) {
+          setExpandedItems(prev => ({ ...prev, [newParentId]: true }));
+        }
+      }
+    } catch (err) {
+      if (err.response?.status === 403) {
+        setError('You only have view permission for this list');
+      } else if (err.response?.data?.error) {
+        setError(err.response.data.error);
+      } else {
+        setError('Failed to move item');
+      }
+    }
+  };
+
+  const handleDragCancel = () => {
+    setActiveId(null);
+    setOverId(null);
   };
 
   const isOwner = selectedList && user && selectedList.user_id === user.id;
@@ -1005,30 +1267,75 @@ function RealtimeApp() {
                   </div>
 
                   {/* Items List */}
-                  <div className="space-y-2">
-                    {(() => {
-                      const renderItem = (item, depth = 0) => {
-                        const hasChildren = item.children && item.children.length > 0;
-                        const isExpanded = expandedItems[item.id] !== false; // default to expanded
+                  {(() => {
+                    // Check if user can edit this list
+                    const canEdit = isOwner || shares.some(s => s.user_id === user?.id && s.permission === 'edit');
 
-                        // Visual styling based on depth
-                        const bgColors = ['bg-gray-50', 'bg-blue-50', 'bg-green-50'];
-                        const borderColors = ['border-gray-200', 'border-blue-200', 'border-green-200'];
-                        const bgColor = bgColors[Math.min(depth, bgColors.length - 1)];
-                        const borderColor = borderColors[Math.min(depth, borderColors.length - 1)];
+                    return (
+                      <>
+                        {/* Drag & Drop Help */}
+                        {canEdit && items.length > 0 && (
+                          <div className="mb-3 text-xs text-gray-500 bg-blue-50 border border-blue-200 rounded p-2">
+                            💡 <strong>Drag & Drop:</strong> Drag items up/down to reorder them. <strong>To nest as sub-item:</strong> hold <kbd className="px-1 bg-white border border-gray-300 rounded text-[10px]">Shift</kbd> (desktop) or drag right 40px+ before dropping (mobile).
+                          </div>
+                        )}
 
-                        return (
-                          <div key={item.id} className="space-y-2">
-                            <div
-                              style={{
-                                marginLeft: `${depth * 24}px`,
-                                borderLeftWidth: depth > 0 ? '3px' : '0',
-                                borderLeftColor: depth > 0 ? 'rgb(59, 130, 246)' : 'transparent'
-                              }}
-                              className={`p-3 ${bgColor} rounded-md border ${borderColor} hover:shadow-sm transition-all`}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center flex-1 gap-2">
+                        <DndContext
+                          sensors={sensors}
+                          collisionDetection={pointerWithin}
+                          onDragStart={handleDragStart}
+                          onDragOver={handleDragOver}
+                          onDragEnd={handleDragEnd}
+                          onDragCancel={handleDragCancel}
+                        >
+                          <SortableContext
+                            items={items.map(item => item.id)}
+                            strategy={verticalListSortingStrategy}
+                          >
+                            <div className="space-y-2">
+                              {(() => {
+
+                          const renderItem = (item, depth = 0) => {
+                            const hasChildren = item.children && item.children.length > 0;
+                            const isExpanded = expandedItems[item.id] === true; // default to collapsed
+
+                            // Visual styling based on depth
+                            const bgColors = ['bg-gray-50', 'bg-blue-50', 'bg-green-50'];
+                            const borderColors = ['border-gray-200', 'border-blue-200', 'border-green-200'];
+                            const bgColor = bgColors[Math.min(depth, bgColors.length - 1)];
+                            const borderColor = borderColors[Math.min(depth, borderColors.length - 1)];
+
+                            return (
+                              <SortableItem key={item.id} id={item.id} canEdit={canEdit}>
+                                {(attributes, listeners, isDragging) => (
+                                  <div className="space-y-2">
+                                    <div
+                                      style={{
+                                        marginLeft: `${depth * 24}px`,
+                                        borderLeftWidth: depth > 0 ? '3px' : '0',
+                                        borderLeftColor: depth > 0 ? 'rgb(59, 130, 246)' : 'transparent'
+                                      }}
+                                      className={`p-3 ${bgColor} rounded-md border ${borderColor} ${
+                                        isDragging ? 'opacity-50 shadow-lg' : 'hover:shadow-sm'
+                                      } transition-all ${overId === `item-${item.id}` ? 'ring-2 ring-blue-400' : ''}`}
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center flex-1 gap-2">
+                                          {/* Drag handle - only show for users with edit permission */}
+                                          {canEdit && (
+                                            <button
+                                              {...attributes}
+                                              {...listeners}
+                                              className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1 touch-none"
+                                              title="Drag to reorder"
+                                            >
+                                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                                                <path d="M7 2a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM7 5a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+                                              </svg>
+                                            </button>
+                                          )}
+
+                                          {!canEdit && <div className="w-6" />}
                                   {/* Expand/Collapse button for items with children */}
                                   {hasChildren && (
                                     <button
@@ -1155,18 +1462,25 @@ function RealtimeApp() {
                                 {item.children.map(child => renderItem(child, depth + 1))}
                               </div>
                             )}
-                          </div>
-                        );
-                      };
+                                    </div>
+                                  )}
+                                </SortableItem>
+                              );
+                            };
 
-                      const organizedItems = organizeItems(items);
-                      return organizedItems.length > 0
-                        ? organizedItems.map(item => renderItem(item))
-                        : !isLoading && (
-                            <p className="text-gray-500 text-center py-4">No items in this list</p>
-                          );
-                    })()}
-                  </div>
+                            const organizedItems = organizeItems(items);
+                            return organizedItems.length > 0
+                              ? organizedItems.map(item => renderItem(item))
+                              : !isLoading && (
+                                  <p className="text-gray-500 text-center py-4">No items in this list</p>
+                                );
+                          })()}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+                  </>
+                );
+              })()}
                 </div>
 
                 {/* Sharing Section (only for owner) */}
