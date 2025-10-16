@@ -4,8 +4,10 @@ services:
     container_name: traefik
     command:
       - "--api.insecure=true"
+      - "--log.level=INFO"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=collaborlist_listapp-network"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
@@ -15,11 +17,16 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    depends_on:
+      - postgres
+      - backend
+      - frontend
     volumes:
       - ./letsencrypt:/letsencrypt
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - listapp-network
+    restart: always
 
   postgres:
     image: postgres:15-alpine
