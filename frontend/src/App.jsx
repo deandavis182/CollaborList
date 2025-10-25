@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 
 const API_BASE = '/api';
@@ -11,6 +11,7 @@ function App() {
   const [newItemText, setNewItemText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [groupCompleted, setGroupCompleted] = useState(false);
 
   useEffect(() => {
     fetchLists();
@@ -116,6 +117,38 @@ function App() {
       console.error(err);
     }
   };
+
+  const activeItems = useMemo(() => items.filter(item => !item.completed), [items]);
+  const completedItems = useMemo(() => items.filter(item => item.completed), [items]);
+
+  const renderItem = (item) => (
+    <div
+      key={item.id}
+      className="p-3 bg-gray-50 rounded-md border border-gray-200 hover:bg-gray-100 transition-colors"
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center flex-1">
+          <input
+            type="checkbox"
+            checked={item.completed}
+            onChange={() => toggleItemComplete(item)}
+            className="mr-3 h-5 w-5 text-blue-600 rounded focus:ring-blue-500"
+          />
+          <span className={`${item.completed ? 'line-through text-gray-500' : 'text-gray-900'}`}>
+            {item.text}
+          </span>
+        </div>
+        <button
+          onClick={() => deleteItem(item.id)}
+          className="text-red-500 hover:text-red-700 p-1"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -237,38 +270,47 @@ function App() {
                     </div>
                   </div>
 
+                  {/* Group Completed Toggle */}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                    <label className="inline-flex items-center text-sm text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={groupCompleted}
+                        onChange={(e) => setGroupCompleted(e.target.checked)}
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="ml-2 font-medium">Group completed items</span>
+                    </label>
+                    <span className="text-xs text-gray-500">{activeItems.length} active · {completedItems.length} completed</span>
+                  </div>
+
                   {/* Items List */}
                   <div className="space-y-2">
-                    {items.map(item => (
-                      <div
-                        key={item.id}
-                        className="p-3 bg-gray-50 rounded-md border border-gray-200 hover:bg-gray-100 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center flex-1">
-                            <input
-                              type="checkbox"
-                              checked={item.completed}
-                              onChange={() => toggleItemComplete(item)}
-                              className="mr-3 h-5 w-5 text-blue-600 rounded focus:ring-blue-500"
-                            />
-                            <span className={`${item.completed ? 'line-through text-gray-500' : 'text-gray-900'}`}>
-                              {item.text}
-                            </span>
+                    {groupCompleted ? (
+                      <>
+                        {activeItems.length > 0 && (
+                          <div className="space-y-2">
+                            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Active</h3>
+                            {activeItems.map(renderItem)}
                           </div>
-                          <button
-                            onClick={() => deleteItem(item.id)}
-                            className="text-red-500 hover:text-red-700 p-1"
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                    {items.length === 0 && !isLoading && (
-                      <p className="text-gray-500 text-center py-4">No items in this list</p>
+                        )}
+                        {completedItems.length > 0 && (
+                          <div className={`space-y-2 ${activeItems.length > 0 ? 'pt-4 border-t border-gray-200' : ''}`}>
+                            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Completed</h3>
+                            {completedItems.map(renderItem)}
+                          </div>
+                        )}
+                        {activeItems.length === 0 && completedItems.length === 0 && !isLoading && (
+                          <p className="text-gray-500 text-center py-4">No items in this list</p>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {items.map(renderItem)}
+                        {items.length === 0 && !isLoading && (
+                          <p className="text-gray-500 text-center py-4">No items in this list</p>
+                        )}
+                      </>
                     )}
                   </div>
                 </>

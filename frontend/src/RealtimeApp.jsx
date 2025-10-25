@@ -97,6 +97,30 @@ function RealtimeApp() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
+  const [groupCompleted, setGroupCompleted] = useState(false);
+  const [showDragHelp, setShowDragHelp] = useState(() => {
+    try {
+      return localStorage.getItem('hideDragHelp') !== 'true';
+    } catch {
+      return true;
+    }
+  });
+  const hideDragHelp = () => {
+    setShowDragHelp(false);
+    try {
+      localStorage.setItem('hideDragHelp', 'true');
+    } catch {
+      // ignore storage failures
+    }
+  };
+  const showDragHelpAgain = () => {
+    setShowDragHelp(true);
+    try {
+      localStorage.removeItem('hideDragHelp');
+    } catch {
+      // ignore storage failures
+    }
+  };
 
   // Notes state
   const [expandedNotes, setExpandedNotes] = useState({});
@@ -1270,13 +1294,49 @@ function RealtimeApp() {
                   {(() => {
                     // Check if user can edit this list
                     const canEdit = isOwner || shares.some(s => s.user_id === user?.id && s.permission === 'edit');
+                    const activeCount = items.filter(item => !item.completed).length;
+                    const completedCount = items.length - activeCount;
 
                     return (
                       <>
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                          <label className="inline-flex items-center text-sm text-gray-600">
+                            <input
+                              type="checkbox"
+                              checked={groupCompleted}
+                              onChange={(e) => setGroupCompleted(e.target.checked)}
+                              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="ml-2 font-medium">Group completed items</span>
+                          </label>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-gray-500">
+                              {activeCount} active · {completedCount} completed
+                            </span>
+                            {!showDragHelp && canEdit && items.length > 0 && (
+                              <button
+                                onClick={showDragHelpAgain}
+                                className="text-xs text-blue-600 hover:text-blue-700 underline"
+                              >
+                                Show tips
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
                         {/* Drag & Drop Help */}
-                        {canEdit && items.length > 0 && (
-                          <div className="mb-3 text-xs text-gray-500 bg-blue-50 border border-blue-200 rounded p-2">
-                            💡 <strong>Drag & Drop:</strong> Drag items up/down to reorder them. <strong>To nest as sub-item:</strong> hold <kbd className="px-1 bg-white border border-gray-300 rounded text-[10px]">Shift</kbd> (desktop) or drag right 40px+ before dropping (mobile).
+                        {canEdit && items.length > 0 && showDragHelp && (
+                          <div className="mb-3 text-xs text-gray-600 bg-blue-50 border border-blue-200 rounded p-3 flex items-start gap-2">
+                            <div className="flex-1">
+                              💡 <strong>Drag & Drop:</strong> Drag items up/down to reorder them. <strong>To nest as sub-item:</strong> hold <kbd className="px-1 bg-white border border-gray-300 rounded text-[10px]">Shift</kbd> (desktop) or drag right 40px+ before dropping (mobile).
+                            </div>
+                            <button
+                              onClick={hideDragHelp}
+                              className="text-blue-500 hover:text-blue-700 p-1"
+                              aria-label="Dismiss drag and drop tips"
+                            >
+                              ×
+                            </button>
                           </div>
                         )}
 
@@ -1469,11 +1529,36 @@ function RealtimeApp() {
                             };
 
                             const organizedItems = organizeItems(items);
-                            return organizedItems.length > 0
-                              ? organizedItems.map(item => renderItem(item))
-                              : !isLoading && (
-                                  <p className="text-gray-500 text-center py-4">No items in this list</p>
-                                );
+
+                            if (organizedItems.length === 0 && !isLoading) {
+                              return (
+                                <p className="text-gray-500 text-center py-4">No items in this list</p>
+                              );
+                            }
+
+                            if (!groupCompleted) {
+                              return organizedItems.map(item => renderItem(item));
+                            }
+
+                            const activeRootItems = organizedItems.filter(item => !item.completed);
+                            const completedRootItems = organizedItems.filter(item => item.completed);
+
+                            return (
+                              <>
+                                {activeRootItems.length > 0 && (
+                                  <div className="space-y-2">
+                                    <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Active</h3>
+                                    {activeRootItems.map(item => renderItem(item))}
+                                  </div>
+                                )}
+                                {completedRootItems.length > 0 && (
+                                  <div className={`space-y-2 ${activeRootItems.length > 0 ? 'pt-4 border-t border-gray-200' : ''}`}>
+                                    <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Completed</h3>
+                                    {completedRootItems.map(item => renderItem(item))}
+                                  </div>
+                                )}
+                              </>
+                            );
                           })()}
                         </div>
                       </SortableContext>
