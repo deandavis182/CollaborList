@@ -6,14 +6,12 @@ import PrivacyPolicy from './components/PrivacyPolicy';
 import TermsOfService from './components/TermsOfService';
 import {
   DndContext,
-  closestCenter,
   PointerSensor,
   TouchSensor,
   useSensor,
   useSensors,
-  DragOverlay,
   pointerWithin,
-  rectIntersection,
+  useDroppable,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -65,16 +63,13 @@ function SortableItem({ id, children, canEdit }) {
   );
 }
 
-// Droppable zone component for making items drop targets
-function DroppableItem({ id, children, isOver }) {
-  return (
-    <div
-      id={id}
-      className={`${isOver ? 'ring-2 ring-blue-400 ring-opacity-50' : ''}`}
-    >
-      {children}
-    </div>
-  );
+function ListDropTarget({ list, canDrop, children }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `list-${list.id}`,
+    disabled: !canDrop,
+  });
+
+  return children({ setNodeRef, isOver });
 }
 
 function RealtimeApp() {
@@ -166,7 +161,25 @@ function RealtimeApp() {
       }
     }
 
+    // Add axios interceptor to handle expired tokens globally
+    const interceptor = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        // If we get a 401 or 403, the token is likely expired
+        if (error.response?.status === 401 || error.response?.status === 403) {
+          // Only handle if we're currently logged in
+          if (token && !isAuthView) {
+            setError('Your session has expired. Please log in again.');
+            setTimeout(() => logout(), 1000);
+          }
+        }
+        return Promise.reject(error);
+      }
+    );
+
     return () => {
+      // Remove interceptor on cleanup
+      axios.interceptors.response.eject(interceptor);
       if (socketRef.current) {
         socketRef.current.disconnect();
       }
@@ -220,12 +233,34 @@ function RealtimeApp() {
     });
 
     socket.on('list-updated', (data) => {
-      setLists(prev => prev.map(list =>
-        list.id === data.id ? data : list
-      ));
-      if (selectedList?.id === data.id) {
-        setSelectedList(data);
-      }
+      setLists(prev => prev.map(list => {
+        if (list.id !== data.id) {
+          return list;
+        }
+
+        const preservedIsOwner = list.is_owner ?? (list.user_id === user?.id);
+        const preservedPermission = list.user_permission ?? (preservedIsOwner ? 'owner' : 'view');
+
+        return {
+          ...list,
+          ...data,
+          is_owner: preservedIsOwner,
+          user_permission: preservedPermission,
+        };
+      }));
+
+      setSelectedList(prev => {
+        if (!prev || prev.id !== data.id) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          ...data,
+          is_owner: prev.is_owner,
+          user_permission: prev.user_permission,
+        };
+      });
     });
 
     socket.on('list-deleted', (data) => {
@@ -315,6 +350,12 @@ function RealtimeApp() {
           delete newState[data.itemId];
           return newState;
         });
+      }
+    });
+
+    socket.on('items-refresh', (data) => {
+      if (selectedListRef.current?.id == data.listId) {
+        fetchItems(data.listId);
       }
     });
 
@@ -494,14 +535,24 @@ function RealtimeApp() {
     setIsLoading(true);
     try {
       const response = await axios.get(`${API_BASE}/lists`);
-      setLists(response.data);
+      const fetchedLists = response.data;
+      setLists(fetchedLists);
+      setSelectedList(prev => {
+        if (!prev) {
+          return prev;
+        }
+        const updated = fetchedLists.find(list => list.id === prev.id);
+        return updated ? { ...updated } : prev;
+      });
     } catch (err) {
       // Better error handling for rate limiting
       if (err.response?.status === 429) {
         const retryAfter = err.response.data?.retryAfter || 15;
         setError(`Too many requests. Please wait ${retryAfter} minute(s) before trying again. Try logging out and back in to reset.`);
-      } else if (err.response?.status === 401) {
-        logout();
+      } else if (err.response?.status === 401 || err.response?.status === 403) {
+        // Token expired or invalid - log out and clear state
+        setError('Your session has expired. Please log in again.');
+        setTimeout(() => logout(), 1000); // Small delay to show the message
       } else {
         setError('Failed to fetch lists');
       }
@@ -525,6 +576,10 @@ function RealtimeApp() {
       if (err.response?.status === 429) {
         const retryAfter = err.response.data?.retryAfter || 15;
         setError(`Too many requests. Please wait ${retryAfter} minute(s). Try logging out and back in to reset.`);
+      } else if (err.response?.status === 401 || err.response?.status === 403) {
+        // Token expired or invalid - log out and clear state
+        setError('Your session has expired. Please log in again.');
+        setTimeout(() => logout(), 1000); // Small delay to show the message
       } else {
         setError('Failed to fetch items');
       }
@@ -836,13 +891,30 @@ function RealtimeApp() {
     })
   );
 
+  const collectDescendantIds = (rootId, sourceItems) => {
+    const ids = new Set([rootId]);
+    const stack = [rootId];
+
+    while (stack.length > 0) {
+      const currentId = stack.pop();
+      sourceItems.forEach(item => {
+        if (item.parent_id == currentId && !ids.has(item.id)) {
+          ids.add(item.id);
+          stack.push(item.id);
+        }
+      });
+    }
+
+    return ids;
+  };
+
   // Drag and drop handlers
   const handleDragStart = (event) => {
     setActiveId(event.active.id);
   };
 
   const handleDragOver = (event) => {
-    setOverId(event.over?.id);
+    setOverId(event.over ? event.over.id : null);
   };
 
   const handleDragEnd = async (event) => {
@@ -856,17 +928,92 @@ function RealtimeApp() {
     }
 
     const activeItem = items.find(item => item.id === active.id);
-    const overItem = items.find(item => item.id === over.id);
 
     if (!activeItem) {
       return;
     }
 
-    try {
-      if (!overItem) {
-        // Dropped on empty space or list - do nothing for now
+    if (typeof over.id === 'string' && over.id.startsWith('list-')) {
+      const targetListId = parseInt(over.id.replace('list-', ''), 10);
+
+      if (!selectedList || Number.isNaN(targetListId) || targetListId === selectedList.id) {
         return;
       }
+
+      if (selectedList.user_id !== user?.id) {
+        setError('Only the owner can move items out of this list');
+        return;
+      }
+
+      const targetList = lists.find(list => list.id === targetListId);
+
+      if (!targetList) {
+        setError('Target list not found');
+        return;
+      }
+
+      const targetPermission = targetList.user_permission || (targetList.user_id === user?.id ? 'owner' : 'view');
+      const canReceiveItem = targetList.user_id === user?.id || targetPermission === 'edit';
+
+      if (!canReceiveItem) {
+        setError('You need edit access to add items to that list');
+        return;
+      }
+
+      try {
+        await axios.put(`${API_BASE}/items/${activeItem.id}`, {
+          list_id: targetListId,
+          parent_id: null,
+        });
+
+        const idsToRemove = collectDescendantIds(activeItem.id, items);
+        setItems(prev => prev.filter(item => !idsToRemove.has(item.id)));
+
+        setExpandedItems(prev => {
+          const updated = { ...prev };
+          idsToRemove.forEach(itemId => {
+            delete updated[itemId];
+          });
+          return updated;
+        });
+
+        setEditingNotes(prev => {
+          const updated = { ...prev };
+          idsToRemove.forEach(itemId => {
+            delete updated[itemId];
+          });
+          return updated;
+        });
+
+        setSavingNotes(prev => {
+          const updated = { ...prev };
+          idsToRemove.forEach(itemId => {
+            delete updated[itemId];
+          });
+          return updated;
+        });
+
+        // Ensure counts update immediately
+      } catch (err) {
+        if (err.response?.status === 403) {
+          setError(err.response.data?.error || 'Permission denied for target list');
+        } else if (err.response?.data?.error) {
+          setError(err.response.data.error);
+        } else {
+          setError('Failed to move item to target list');
+        }
+      }
+
+      return;
+    }
+
+    const overItem = items.find(item => item.id === over.id);
+
+    if (!overItem) {
+      return;
+    }
+
+    try {
 
       // Prevent dropping an item onto itself or its own descendants
       if (activeItem.id === overItem.id) {
@@ -1183,459 +1330,464 @@ function RealtimeApp() {
       )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Lists Panel */}
-          <div className="md:col-span-1">
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold mb-4">My Lists</h2>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={pointerWithin}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Lists Panel */}
+            <div className="md:col-span-1">
+              <div className="bg-white rounded-lg shadow p-6">
+                <h2 className="text-lg font-semibold mb-4">My Lists</h2>
 
-              {/* Create List Form */}
-              <div className="mb-4">
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <input
-                    type="text"
-                    value={newListName}
-                    onChange={(e) => setNewListName(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && createList()}
-                    placeholder="New list name..."
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                  <button
-                    onClick={createList}
-                    className="px-3 sm:px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-md hover:from-purple-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-purple-500 whitespace-nowrap"
-                  >
-                    Add
-                  </button>
+                <div className="mb-4">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      value={newListName}
+                      onChange={(e) => setNewListName(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && createList()}
+                      placeholder="New list name..."
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                    <button
+                      onClick={createList}
+                      className="px-3 sm:px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-md hover:from-purple-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-purple-500 whitespace-nowrap"
+                    >
+                      Add
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              {/* Lists */}
-              <div className="space-y-2">
-                {lists.map(list => (
-                  <div
-                    key={list.id}
-                    className={`p-3 rounded-md border cursor-pointer transition-colors ${
-                      selectedList?.id === list.id
-                        ? 'bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-300'
-                        : 'bg-white border-gray-200 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex justify-between items-center">
-                      <div
-                        onClick={() => setSelectedList(list)}
-                        className="flex-1"
-                      >
-                        <h3 className="font-medium text-gray-900">
-                          {list.name}
-                          {list.user_id !== user?.id && (
-                            <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">Shared</span>
-                          )}
-                        </h3>
-                      </div>
-                      {list.user_id === user?.id && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteList(list.id);
-                          }}
-                          className="text-red-500 hover:text-red-700 p-1"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                {lists.length === 0 && !isLoading && (
-                  <p className="text-gray-500 text-center py-4">No lists yet</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Items & Sharing Panel */}
-          <div className="md:col-span-2">
-            {selectedList ? (
-              <div className="space-y-6">
-                {/* Items */}
-                <div className="bg-white rounded-lg shadow p-6">
-                  <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-lg font-semibold">{selectedList.name}</h2>
-                    {connectionStatus === 'connected' && (
-                      <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
-                        ⚡ Real-time sync active
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Create Item Form */}
-                  <div className="mb-4">
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <input
-                        type="text"
-                        value={newItemText}
-                        onChange={(e) => setNewItemText(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && createItem()}
-                        placeholder="Add new item..."
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <button
-                        onClick={createItem}
-                        className="px-3 sm:px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 whitespace-nowrap"
-                      >
-                        Add Item
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Items List */}
-                  {(() => {
-                    // Check if user can edit this list
-                    const canEdit = isOwner || shares.some(s => s.user_id === user?.id && s.permission === 'edit');
-                    const activeCount = items.filter(item => !item.completed).length;
-                    const completedCount = items.length - activeCount;
+                <div className="space-y-2">
+                  {lists.map(list => {
+                    const isSelected = selectedList?.id === list.id;
+                    const canMoveOut = selectedList && selectedList.user_id === user?.id;
+                    const listPermission = list.user_permission || (list.user_id === user?.id ? 'owner' : 'view');
+                    const canReceiveItem = Boolean(
+                      canMoveOut &&
+                      !isSelected &&
+                      (list.user_id === user?.id || listPermission === 'edit')
+                    );
 
                     return (
-                      <>
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-                          <label className="inline-flex items-center text-sm text-gray-600">
-                            <input
-                              type="checkbox"
-                              checked={groupCompleted}
-                              onChange={(e) => setGroupCompleted(e.target.checked)}
-                              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            />
-                            <span className="ml-2 font-medium">Group completed items</span>
-                          </label>
-                          <div className="flex items-center gap-3">
-                            <span className="text-xs text-gray-500">
-                              {activeCount} active · {completedCount} completed
-                            </span>
-                            {!showDragHelp && canEdit && items.length > 0 && (
-                              <button
-                                onClick={showDragHelpAgain}
-                                className="text-xs text-blue-600 hover:text-blue-700 underline"
-                              >
-                                Show tips
-                              </button>
-                            )}
-                          </div>
-                        </div>
+                      <ListDropTarget key={list.id} list={list} canDrop={canReceiveItem}>
+                        {({ setNodeRef, isOver }) => {
+                          const isActiveDropTarget = canReceiveItem && (isOver || overId === `list-${list.id}`);
 
-                        {/* Drag & Drop Help */}
-                        {canEdit && items.length > 0 && showDragHelp && (
-                          <div className="mb-3 text-xs text-gray-600 bg-blue-50 border border-blue-200 rounded p-3 flex items-start gap-2">
-                            <div className="flex-1">
-                              💡 <strong>Drag & Drop:</strong> Drag items up/down to reorder them. <strong>To nest as sub-item:</strong> hold <kbd className="px-1 bg-white border border-gray-300 rounded text-[10px]">Shift</kbd> (desktop) or drag right 40px+ before dropping (mobile).
-                            </div>
-                            <button
-                              onClick={hideDragHelp}
-                              className="text-blue-500 hover:text-blue-700 p-1"
-                              aria-label="Dismiss drag and drop tips"
+                          return (
+                            <div
+                              ref={setNodeRef}
+                              className={`p-3 rounded-md border cursor-pointer transition-colors ${
+                                isSelected
+                                  ? 'bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-300'
+                                  : 'bg-white border-gray-200 hover:bg-gray-50'
+                              } ${isActiveDropTarget ? 'ring-2 ring-purple-400 ring-opacity-60' : ''}`}
                             >
-                              ×
-                            </button>
-                          </div>
-                        )}
+                              <div className="flex justify-between items-center">
+                                <div
+                                  onClick={() => setSelectedList(list)}
+                                  className="flex-1"
+                                >
+                                  <h3 className="font-medium text-gray-900">
+                                    {list.name}
+                                    {list.user_id !== user?.id && (
+                                      <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">Shared</span>
+                                    )}
+                                  </h3>
+                                </div>
+                                {list.user_id === user?.id && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      deleteList(list.id);
+                                    }}
+                                    className="text-red-500 hover:text-red-700 p-1"
+                                  >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        }}
+                      </ListDropTarget>
+                    );
+                  })}
+                  {lists.length === 0 && !isLoading && (
+                    <p className="text-gray-500 text-center py-4">No lists yet</p>
+                  )}
+                </div>
+              </div>
+            </div>
 
-                        <DndContext
-                          sensors={sensors}
-                          collisionDetection={pointerWithin}
-                          onDragStart={handleDragStart}
-                          onDragOver={handleDragOver}
-                          onDragEnd={handleDragEnd}
-                          onDragCancel={handleDragCancel}
+            {/* Items & Sharing Panel */}
+            <div className="md:col-span-2">
+              {selectedList ? (
+                <div className="space-y-6">
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <div className="flex justify-between items-center mb-4">
+                      <h2 className="text-lg font-semibold">{selectedList.name}</h2>
+                      {connectionStatus === 'connected' && (
+                        <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
+                          ⚡ Real-time sync active
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="mb-4">
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                          type="text"
+                          value={newItemText}
+                          onChange={(e) => setNewItemText(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && createItem()}
+                          placeholder="Add new item..."
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                          onClick={() => createItem()}
+                          className="px-3 sm:px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 whitespace-nowrap"
                         >
+                          Add Item
+                        </button>
+                      </div>
+                    </div>
+
+                    {(() => {
+                      const canEdit = isOwner || shares.some(s => s.user_id === user?.id && s.permission === 'edit');
+                      const activeCount = items.filter(item => !item.completed).length;
+                      const completedCount = items.length - activeCount;
+
+                      return (
+                        <>
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                            <label className="inline-flex items-center text-sm text-gray-600">
+                              <input
+                                type="checkbox"
+                                checked={groupCompleted}
+                                onChange={(e) => setGroupCompleted(e.target.checked)}
+                                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="ml-2 font-medium">Group completed items</span>
+                            </label>
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs text-gray-500">
+                                {activeCount} active · {completedCount} completed
+                              </span>
+                              {!showDragHelp && canEdit && items.length > 0 && (
+                                <button
+                                  onClick={showDragHelpAgain}
+                                  className="text-xs text-blue-600 hover:text-blue-700 underline"
+                                >
+                                  Show tips
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {canEdit && items.length > 0 && showDragHelp && (
+                            <div className="mb-3 text-xs text-gray-600 bg-blue-50 border border-blue-200 rounded p-3 flex items-start gap-2">
+                              <div className="flex-1">
+                                💡 <strong>Drag & Drop:</strong> Drag items up/down to reorder them, or drop onto another list you own to move it there. <strong>To nest as sub-item:</strong> hold <kbd className="px-1 bg-white border border-gray-300 rounded text-[10px]">Shift</kbd> (desktop) or drag right 40px+ before dropping (mobile).
+                              </div>
+                              <button
+                                onClick={hideDragHelp}
+                                className="text-blue-500 hover:text-blue-700 p-1"
+                                aria-label="Dismiss drag and drop tips"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          )}
+
                           <SortableContext
                             items={items.map(item => item.id)}
                             strategy={verticalListSortingStrategy}
                           >
                             <div className="space-y-2">
                               {(() => {
+                                const renderItem = (item, depth = 0) => {
+                                  const hasChildren = item.children && item.children.length > 0;
+                                  const isExpanded = expandedItems[item.id] === true;
 
-                          const renderItem = (item, depth = 0) => {
-                            const hasChildren = item.children && item.children.length > 0;
-                            const isExpanded = expandedItems[item.id] === true; // default to collapsed
+                                  const bgColors = ['bg-gray-50', 'bg-blue-50', 'bg-green-50'];
+                                  const borderColors = ['border-gray-200', 'border-blue-200', 'border-green-200'];
+                                  const bgColor = bgColors[Math.min(depth, bgColors.length - 1)];
+                                  const borderColor = borderColors[Math.min(depth, borderColors.length - 1)];
 
-                            // Visual styling based on depth
-                            const bgColors = ['bg-gray-50', 'bg-blue-50', 'bg-green-50'];
-                            const borderColors = ['border-gray-200', 'border-blue-200', 'border-green-200'];
-                            const bgColor = bgColors[Math.min(depth, bgColors.length - 1)];
-                            const borderColor = borderColors[Math.min(depth, borderColors.length - 1)];
+                                  return (
+                                    <SortableItem key={item.id} id={item.id} canEdit={canEdit}>
+                                      {(attributes, listeners, isDragging) => (
+                                        <div className="space-y-2">
+                                          <div
+                                            style={{
+                                              marginLeft: `${depth * 24}px`,
+                                              borderLeftWidth: depth > 0 ? '3px' : '0',
+                                              borderLeftColor: depth > 0 ? 'rgb(59, 130, 246)' : 'transparent'
+                                            }}
+                                            className={`p-3 ${bgColor} rounded-md border ${borderColor} ${
+                                              isDragging ? 'opacity-50 shadow-lg' : 'hover:shadow-sm'
+                                            } transition-all ${overId === item.id ? 'ring-2 ring-blue-400' : ''}`}
+                                          >
+                                            <div className="flex items-center justify-between">
+                                              <div className="flex items-center flex-1 gap-2">
+                                                {canEdit && (
+                                                  <button
+                                                    {...attributes}
+                                                    {...listeners}
+                                                    className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1 touch-none"
+                                                    title="Drag to reorder"
+                                                  >
+                                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                                                      <path d="M7 2a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM7 5a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0z" />
+                                                    </svg>
+                                                  </button>
+                                                )}
 
-                            return (
-                              <SortableItem key={item.id} id={item.id} canEdit={canEdit}>
-                                {(attributes, listeners, isDragging) => (
-                                  <div className="space-y-2">
-                                    <div
-                                      style={{
-                                        marginLeft: `${depth * 24}px`,
-                                        borderLeftWidth: depth > 0 ? '3px' : '0',
-                                        borderLeftColor: depth > 0 ? 'rgb(59, 130, 246)' : 'transparent'
-                                      }}
-                                      className={`p-3 ${bgColor} rounded-md border ${borderColor} ${
-                                        isDragging ? 'opacity-50 shadow-lg' : 'hover:shadow-sm'
-                                      } transition-all ${overId === `item-${item.id}` ? 'ring-2 ring-blue-400' : ''}`}
-                                    >
-                                      <div className="flex items-center justify-between">
-                                        <div className="flex items-center flex-1 gap-2">
-                                          {/* Drag handle - only show for users with edit permission */}
-                                          {canEdit && (
-                                            <button
-                                              {...attributes}
-                                              {...listeners}
-                                              className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1 touch-none"
-                                              title="Drag to reorder"
-                                            >
-                                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
-                                                <path d="M7 2a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM7 5a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
-                                              </svg>
-                                            </button>
+                                                {!canEdit && <div className="w-6" />}
+
+                                                {hasChildren && (
+                                                  <button
+                                                    onClick={() => toggleItemExpanded(item.id)}
+                                                    className="text-gray-500 hover:text-gray-700 p-1"
+                                                    title={isExpanded ? 'Collapse' : 'Expand'}
+                                                  >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                      {isExpanded ? (
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                      ) : (
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                      )}
+                                                    </svg>
+                                                  </button>
+                                                )}
+                                                {!hasChildren && <div className="w-6" />}
+
+                                                <input
+                                                  type="checkbox"
+                                                  checked={item.completed}
+                                                  onChange={() => toggleItemComplete(item)}
+                                                  className="h-5 w-5 text-blue-600 rounded focus:ring-blue-500"
+                                                />
+                                                <span className={`flex-1 ${item.completed ? 'line-through text-gray-500' : 'text-gray-900'}`}>
+                                                  {item.text}
+                                                </span>
+                                                {hasChildren && (
+                                                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                                                    {item.children.length}
+                                                  </span>
+                                                )}
+                                              </div>
+                                              <div className="flex items-center gap-2">
+                                                <button
+                                                  onClick={() => setAddingSubItemTo(item.id)}
+                                                  className="text-green-500 hover:text-green-700 p-1"
+                                                  title="Add sub-item"
+                                                >
+                                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                                  </svg>
+                                                </button>
+                                                <button
+                                                  onClick={() => toggleNotesExpanded(item.id)}
+                                                  className={`text-gray-500 hover:text-gray-700 p-1 ${item.notes || expandedNotes[item.id] ? 'text-yellow-500' : ''}`}
+                                                  title={expandedNotes[item.id] ? 'Hide notes' : 'Add/view notes'}
+                                                >
+                                                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                                    <path d="M20 3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11l5-5V5c0-1.1-.9-2-2-2zm-1 14.5l-3.5 3.5H4V5h16v12.5z" />
+                                                    <path d="M6 10h8v2H6zm0-3h10v2H6zm0 6h6v2H6z" />
+                                                  </svg>
+                                                </button>
+                                                <button
+                                                  onClick={() => deleteItem(item.id)}
+                                                  className="text-red-500 hover:text-red-700 p-1"
+                                                >
+                                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                  </svg>
+                                                </button>
+                                              </div>
+                                            </div>
+
+                                            {addingSubItemTo === item.id && (
+                                              <div className="mt-3 pt-3 border-t border-gray-200">
+                                                <div className="flex gap-2">
+                                                  <input
+                                                    type="text"
+                                                    value={newSubItemText}
+                                                    onChange={(e) => setNewSubItemText(e.target.value)}
+                                                    onKeyPress={(e) => e.key === 'Enter' && createItem(item.id)}
+                                                    placeholder="Add sub-item..."
+                                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+                                                    autoFocus
+                                                  />
+                                                  <button
+                                                    onClick={() => createItem(item.id)}
+                                                    className="px-3 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 text-sm"
+                                                  >
+                                                    Add
+                                                  </button>
+                                                  <button
+                                                    onClick={() => {
+                                                      setAddingSubItemTo(null);
+                                                      setNewSubItemText('');
+                                                    }}
+                                                    className="px-3 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 text-sm"
+                                                  >
+                                                    Cancel
+                                                  </button>
+                                                </div>
+                                              </div>
+                                            )}
+
+                                            {expandedNotes[item.id] && (
+                                              <div className="mt-3 pt-3 border-t border-gray-200">
+                                                <div className="relative">
+                                                  <textarea
+                                                    value={editingNotes[item.id] !== undefined ? editingNotes[item.id] : (item.notes || '')}
+                                                    onChange={(e) => handleNotesChange(item.id, e.target.value)}
+                                                    placeholder="Add notes..."
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                                                    rows="3"
+                                                  />
+                                                  {savingNotes[item.id] && (
+                                                    <div className="absolute top-2 right-2 text-xs text-gray-500 flex items-center gap-1">
+                                                      <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                      </svg>
+                                                      Saving...
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          {hasChildren && isExpanded && (
+                                            <div>
+                                              {item.children.map(child => renderItem(child, depth + 1))}
+                                            </div>
                                           )}
+                                        </div>
+                                      )}
+                                    </SortableItem>
+                                  );
+                                };
 
-                                          {!canEdit && <div className="w-6" />}
-                                  {/* Expand/Collapse button for items with children */}
-                                  {hasChildren && (
-                                    <button
-                                      onClick={() => toggleItemExpanded(item.id)}
-                                      className="text-gray-500 hover:text-gray-700 p-1"
-                                      title={isExpanded ? 'Collapse' : 'Expand'}
-                                    >
-                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        {isExpanded ? (
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                        ) : (
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                        )}
-                                      </svg>
-                                    </button>
-                                  )}
-                                  {!hasChildren && <div className="w-6" />}
+                                const organizedItems = organizeItems(items);
 
-                                  <input
-                                    type="checkbox"
-                                    checked={item.completed}
-                                    onChange={() => toggleItemComplete(item)}
-                                    className="h-5 w-5 text-blue-600 rounded focus:ring-blue-500"
-                                  />
-                                  <span className={`flex-1 ${item.completed ? 'line-through text-gray-500' : 'text-gray-900'}`}>
-                                    {item.text}
-                                  </span>
-                                  {hasChildren && (
-                                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
-                                      {item.children.length}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {/* Add Sub-Item button */}
-                                  <button
-                                    onClick={() => setAddingSubItemTo(item.id)}
-                                    className="text-green-500 hover:text-green-700 p-1"
-                                    title="Add sub-item"
-                                  >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                    </svg>
-                                  </button>
-                                  {/* Notes toggle button */}
-                                  <button
-                                    onClick={() => toggleNotesExpanded(item.id)}
-                                    className={`text-gray-500 hover:text-gray-700 p-1 ${item.notes || expandedNotes[item.id] ? 'text-yellow-500' : ''}`}
-                                    title={expandedNotes[item.id] ? 'Hide notes' : 'Add/view notes'}
-                                  >
-                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                                      <path d="M20 3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11l5-5V5c0-1.1-.9-2-2-2zm-1 14.5l-3.5 3.5H4V5h16v12.5z"/>
-                                      <path d="M6 10h8v2H6zm0-3h10v2H6zm0 6h6v2H6z"/>
-                                    </svg>
-                                  </button>
-                                  <button
-                                    onClick={() => deleteItem(item.id)}
-                                    className="text-red-500 hover:text-red-700 p-1"
-                                  >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                  </button>
-                                </div>
-                              </div>
+                                if (organizedItems.length === 0 && !isLoading) {
+                                  return (
+                                    <p className="text-gray-500 text-center py-4">No items in this list</p>
+                                  );
+                                }
 
-                              {/* Add Sub-Item Form */}
-                              {addingSubItemTo === item.id && (
-                                <div className="mt-3 pt-3 border-t border-gray-200">
-                                  <div className="flex gap-2">
-                                    <input
-                                      type="text"
-                                      value={newSubItemText}
-                                      onChange={(e) => setNewSubItemText(e.target.value)}
-                                      onKeyPress={(e) => e.key === 'Enter' && createItem(item.id)}
-                                      placeholder="Add sub-item..."
-                                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
-                                      autoFocus
-                                    />
-                                    <button
-                                      onClick={() => createItem(item.id)}
-                                      className="px-3 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 text-sm"
-                                    >
-                                      Add
-                                    </button>
-                                    <button
-                                      onClick={() => { setAddingSubItemTo(null); setNewSubItemText(''); }}
-                                      className="px-3 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 text-sm"
-                                    >
-                                      Cancel
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
+                                if (!groupCompleted) {
+                                  return organizedItems.map(item => renderItem(item));
+                                }
 
-                              {/* Notes section */}
-                              {expandedNotes[item.id] && (
-                                <div className="mt-3 pt-3 border-t border-gray-200">
-                                  <div className="relative">
-                                    <textarea
-                                      value={editingNotes[item.id] !== undefined ? editingNotes[item.id] : (item.notes || '')}
-                                      onChange={(e) => handleNotesChange(item.id, e.target.value)}
-                                      placeholder="Add notes..."
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                                      rows="3"
-                                    />
-                                    {savingNotes[item.id] && (
-                                      <div className="absolute top-2 right-2 text-xs text-gray-500 flex items-center gap-1">
-                                        <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
-                                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
-                                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
-                                        Saving...
+                                const activeRootItems = organizedItems.filter(item => !item.completed);
+                                const completedRootItems = organizedItems.filter(item => item.completed);
+
+                                return (
+                                  <>
+                                    {activeRootItems.length > 0 && (
+                                      <div className="space-y-2">
+                                        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Active</h3>
+                                        {activeRootItems.map(item => renderItem(item))}
                                       </div>
                                     )}
-                                  </div>
-                                </div>
-                              )}
+                                    {completedRootItems.length > 0 && (
+                                      <div className={`space-y-2 ${activeRootItems.length > 0 ? 'pt-4 border-t border-gray-200' : ''}`}>
+                                        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Completed</h3>
+                                        {completedRootItems.map(item => renderItem(item))}
+                                      </div>
+                                    )}
+                                  </>
+                                );
+                              })()}
                             </div>
-
-                            {/* Render children */}
-                            {hasChildren && isExpanded && (
-                              <div>
-                                {item.children.map(child => renderItem(child, depth + 1))}
-                              </div>
-                            )}
-                                    </div>
-                                  )}
-                                </SortableItem>
-                              );
-                            };
-
-                            const organizedItems = organizeItems(items);
-
-                            if (organizedItems.length === 0 && !isLoading) {
-                              return (
-                                <p className="text-gray-500 text-center py-4">No items in this list</p>
-                              );
-                            }
-
-                            if (!groupCompleted) {
-                              return organizedItems.map(item => renderItem(item));
-                            }
-
-                            const activeRootItems = organizedItems.filter(item => !item.completed);
-                            const completedRootItems = organizedItems.filter(item => item.completed);
-
-                            return (
-                              <>
-                                {activeRootItems.length > 0 && (
-                                  <div className="space-y-2">
-                                    <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Active</h3>
-                                    {activeRootItems.map(item => renderItem(item))}
-                                  </div>
-                                )}
-                                {completedRootItems.length > 0 && (
-                                  <div className={`space-y-2 ${activeRootItems.length > 0 ? 'pt-4 border-t border-gray-200' : ''}`}>
-                                    <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Completed</h3>
-                                    {completedRootItems.map(item => renderItem(item))}
-                                  </div>
-                                )}
-                              </>
-                            );
-                          })()}
-                        </div>
-                      </SortableContext>
-                    </DndContext>
-                  </>
-                );
-              })()}
-                </div>
-
-                {/* Sharing Section (only for owner) */}
-                {isOwner && (
-                  <div className="bg-white rounded-lg shadow p-6">
-                    <h3 className="text-lg font-semibold mb-4">Share This List</h3>
-
-                    <div className="flex flex-col sm:flex-row gap-2 mb-4">
-                      <input
-                        type="email"
-                        value={shareEmail}
-                        onChange={(e) => setShareEmail(e.target.value)}
-                        placeholder="Enter email to share..."
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <div className="flex gap-2">
-                        <select
-                          value={sharePermission}
-                          onChange={(e) => setSharePermission(e.target.value)}
-                          className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="view">View</option>
-                          <option value="edit">Edit</option>
-                        </select>
-                        <button
-                          onClick={shareList}
-                          className="px-3 sm:px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 whitespace-nowrap"
-                        >
-                          Share
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Current Shares */}
-                    {shares.length > 0 && (
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-gray-700">Shared with:</h4>
-                        {shares.map(share => (
-                          <div key={share.user_id} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                            <span>{share.email}</span>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm bg-gray-200 px-2 py-1 rounded">
-                                {share.permission}
-                              </span>
-                              <button
-                                onClick={() => removeShare(share.user_id)}
-                                className="text-red-500 hover:text-red-700"
-                              >
-                                Remove
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                          </SortableContext>
+                        </>
+                      );
+                    })()}
                   </div>
-                )}
-              </div>
-            ) : (
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="text-center py-12 text-gray-500">
-                  Select a list to view items
+
+                  {isOwner && (
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <h3 className="text-lg font-semibold mb-4">Share This List</h3>
+
+                      <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                        <input
+                          type="email"
+                          value={shareEmail}
+                          onChange={(e) => setShareEmail(e.target.value)}
+                          placeholder="Enter email to share..."
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <div className="flex gap-2">
+                          <select
+                            value={sharePermission}
+                            onChange={(e) => setSharePermission(e.target.value)}
+                            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="view">View</option>
+                            <option value="edit">Edit</option>
+                          </select>
+                          <button
+                            onClick={shareList}
+                            className="px-3 sm:px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 whitespace-nowrap"
+                          >
+                            Share
+                          </button>
+                        </div>
+                      </div>
+
+                      {shares.length > 0 && (
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-gray-700">Shared with:</h4>
+                          {shares.map(share => (
+                            <div key={share.user_id} className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                              <span>{share.email}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm bg-gray-200 px-2 py-1 rounded">
+                                  {share.permission}
+                                </span>
+                                <button
+                                  onClick={() => removeShare(share.user_id)}
+                                  className="text-red-500 hover:text-red-700"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="bg-white rounded-lg shadow p-6">
+                  <div className="text-center py-12 text-gray-500">
+                    Select a list to view items
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        </DndContext>
       </div>
     </div>
-  );
+);
 }
 
 export default RealtimeApp;

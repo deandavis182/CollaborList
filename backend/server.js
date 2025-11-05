@@ -281,9 +281,14 @@ app.post('/api/auth/google', async (req, res) => {
 app.get('/api/lists', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT DISTINCT l.*
+      `SELECT l.*,
+              CASE WHEN l.user_id = $1 THEN true ELSE false END AS is_owner,
+              CASE
+                WHEN l.user_id = $1 THEN 'owner'
+                ELSE COALESCE(ls.permission, 'view')
+              END AS user_permission
        FROM lists l
-       LEFT JOIN list_shares ls ON l.id = ls.list_id
+       LEFT JOIN list_shares ls ON l.id = ls.list_id AND ls.user_id = $1
        WHERE l.user_id = $1 OR ls.user_id = $1
        ORDER BY l.created_at DESC`,
       [req.user.id]
@@ -313,6 +318,8 @@ app.post('/api/lists', authenticateToken, async (req, res) => {
     );
 
     const newList = result.rows[0];
+    newList.is_owner = true;
+    newList.user_permission = 'owner';
 
     // Emit to all users who have access
     emitListUpdate(newList.id, 'list-created', newList);
@@ -359,6 +366,9 @@ app.put('/api/lists/:id', authenticateToken, async (req, res) => {
     );
 
     const updatedList = result.rows[0];
+    const isOwner = updatedList.user_id === req.user.id;
+    updatedList.is_owner = isOwner;
+    updatedList.user_permission = isOwner ? 'owner' : 'edit';
 
     // Emit update to all users viewing this list
     emitListUpdate(id, 'list-updated', updatedList);
@@ -607,7 +617,7 @@ app.post('/api/lists/:listId/items', authenticateToken, async (req, res) => {
 
 app.put('/api/items/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  let { text, completed, position, notes, parent_id } = req.body;
+  let { text, completed, position, notes, parent_id, list_id: requestedListId } = req.body;
 
   // Sanitize text input if provided
   if (text !== undefined) {
@@ -615,6 +625,14 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
     if (text.length < 1) {
       return res.status(400).json({ error: 'Item text cannot be empty' });
     }
+  }
+
+  if (requestedListId !== undefined && requestedListId !== null) {
+    const parsed = parseInt(requestedListId, 10);
+    if (Number.isNaN(parsed)) {
+      return res.status(400).json({ error: 'Invalid target list' });
+    }
+    requestedListId = parsed;
   }
 
   try {
@@ -632,29 +650,71 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Item not found' });
     }
 
-    const canEdit = permCheck.rows[0].user_id === req.user.id ||
-                    permCheck.rows[0].permission === 'edit';
+    const isSourceOwner = permCheck.rows[0].user_id === req.user.id;
+    const canEdit = isSourceOwner || permCheck.rows[0].permission === 'edit';
 
     if (!canEdit) {
       return res.status(403).json({ error: 'No edit permission' });
     }
 
-    const listId = permCheck.rows[0].list_id;
+    const originalListId = permCheck.rows[0].list_id;
+    let targetListId = originalListId;
+    let isCrossListMove = false;
 
-    // If parent_id is being updated, verify it exists and belongs to the same list
-    // Also prevent circular references (item cannot be its own parent or descendant)
+    if (requestedListId !== undefined && requestedListId !== originalListId) {
+      if (!isSourceOwner) {
+        return res.status(403).json({ error: 'Only list owners can move items to other lists' });
+      }
+
+      const targetCheck = await pool.query(
+        `SELECT l.user_id, ls.permission
+         FROM lists l
+         LEFT JOIN list_shares ls ON l.id = ls.list_id AND ls.user_id = $2
+         WHERE l.id = $1`,
+        [requestedListId, req.user.id]
+      );
+
+      if (targetCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Target list not found' });
+      }
+
+      const targetOwnerId = targetCheck.rows[0].user_id;
+      const targetPermission = targetCheck.rows[0].permission;
+      const canAddToTarget = targetOwnerId === req.user.id || targetPermission === 'edit';
+
+      if (!canAddToTarget) {
+        return res.status(403).json({ error: 'No edit permission on target list' });
+      }
+
+      targetListId = requestedListId;
+      isCrossListMove = true;
+
+      if (parent_id === undefined) {
+        parent_id = null;
+      }
+    }
+
+    const parentValidationListId = isCrossListMove ? targetListId : originalListId;
+
     if (parent_id !== undefined && parent_id !== null) {
       const parentCheck = await pool.query(
         'SELECT id FROM list_items WHERE id = $1 AND list_id = $2',
-        [parent_id, listId]
+        [parent_id, parentValidationListId]
       );
       if (parentCheck.rows.length === 0) {
         return res.status(400).json({ error: 'Invalid parent item' });
       }
-      // Prevent self-reference
       if (parent_id == id) {
         return res.status(400).json({ error: 'Item cannot be its own parent' });
       }
+    }
+
+    if (isCrossListMove) {
+      const posResult = await pool.query(
+        'SELECT COALESCE(MAX(position), 0) + 1 AS next_position FROM list_items WHERE list_id = $1 AND parent_id IS NOT DISTINCT FROM $2',
+        [targetListId, parent_id === undefined ? null : parent_id]
+      );
+      position = posResult.rows[0].next_position;
     }
 
     let query = 'UPDATE list_items SET updated_at = NOW()';
@@ -681,15 +741,71 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
       query += `, parent_id = $${paramCount++}`;
       params.push(parent_id);
     }
+    if (requestedListId !== undefined) {
+      query += `, list_id = $${paramCount++}`;
+      params.push(targetListId);
+    }
 
     query += ` WHERE id = $${paramCount} RETURNING *`;
     params.push(id);
 
-    const result = await pool.query(query, params);
-    const updatedItem = result.rows[0];
+    let updatedItem;
 
-    // Emit item updated event
-    emitListUpdate(listId, 'item-updated', { listId, item: updatedItem });
+    // Use transaction for cross-list moves to ensure atomicity
+    if (isCrossListMove) {
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+
+        // Update the main item
+        const result = await client.query(query, params);
+
+        if (result.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ error: 'Item not found' });
+        }
+
+        // Move all descendants to the target list
+        await client.query(
+          `WITH RECURSIVE subtree AS (
+             SELECT id FROM list_items WHERE id = $1
+             UNION
+             SELECT li.id
+             FROM list_items li
+             JOIN subtree s ON li.parent_id = s.id
+           )
+           UPDATE list_items
+           SET list_id = $2
+           WHERE id IN (SELECT id FROM subtree)`,
+          [id, targetListId]
+        );
+
+        // Get the updated item with all changes
+        const refreshedItem = await client.query('SELECT * FROM list_items WHERE id = $1', [id]);
+        updatedItem = refreshedItem.rows[0];
+
+        await client.query('COMMIT');
+
+        // Emit updates after successful transaction
+        emitListUpdate(originalListId, 'items-refresh', { listId: originalListId });
+        emitListUpdate(targetListId, 'items-refresh', { listId: targetListId });
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+    } else {
+      // Simple update without transaction for non-cross-list changes
+      const result = await pool.query(query, params);
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Item not found' });
+      }
+
+      updatedItem = result.rows[0];
+      emitListUpdate(targetListId, 'item-updated', { listId: targetListId, item: updatedItem });
+    }
 
     res.json(updatedItem);
   } catch (error) {

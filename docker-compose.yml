@@ -57,6 +57,27 @@ services:
       - listapp-network
     restart: unless-stopped
 
+  backend-test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.test
+    container_name: listapp-backend-test
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: listapp
+      DB_USER: listuser
+      DB_PASSWORD: listpass
+      JWT_SECRET: test-secret
+      NODE_ENV: test
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - listapp-network
+    profiles:
+      - test
+
 volumes:
   postgres_data:
 
