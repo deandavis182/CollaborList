@@ -114,7 +114,7 @@ syncs `completed = (status === 'Done')`.
 1. Create all new tables.
 2. Backfill: for every existing user → create a default "Personal" workspace + owner membership.
 3. For each existing list → create/assign a default "General" project in its owner's workspace; set `lists.project_id`.
-4. Convert each `list_shares` row → equivalent `workspace_members` / project access. **Keep `list_shares` intact** until the new path is verified.
+4. Preserve `list_shares` unchanged; it continues as the sharing path for V1 lists. Workspace membership is the new, additional sharing path for the V2 hub structure (workspaces and projects).
 5. Add new `list_items` columns; backfill `status` from `completed`.
 
 ### Zero-loss guarantee

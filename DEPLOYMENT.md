@@ -82,3 +82,7 @@ To restore if needed:
 ```bash
 cat backup-YYYYMMDD-HHMMSS.sql | docker exec -i listapp-db psql -U listuser listapp
 ```
+
+**Note on integration testing:** The integration test suite (`npm run test:integration`)
+seeds and mutates the database and must always run against a dedicated test database
+(e.g., a separate `DB_NAME`), never against a production database.
