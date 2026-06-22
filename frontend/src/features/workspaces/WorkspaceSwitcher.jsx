@@ -29,7 +29,7 @@ export function WorkspaceSwitcher() {
       ) : (
         <ul role="list" className="space-y-1">
           {workspaces.map((ws) => {
-            const isActive = ws.id === currentWorkspaceId
+            const isActive = String(ws.id) === String(currentWorkspaceId)
             return (
               <li key={ws.id}>
                 <button

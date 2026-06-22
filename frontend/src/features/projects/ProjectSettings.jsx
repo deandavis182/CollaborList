@@ -23,6 +23,7 @@ import { Button } from '../../ui/Button.jsx'
 import { Toast } from '../../ui/Toast.jsx'
 import { useUpdateProject, useDeleteProject } from '../../lib/api.js'
 import { useStore } from '../../lib/store.js'
+import { getApiError } from '../../lib/apiError.js'
 
 // ---------------------------------------------------------------------------
 // Preset color swatches
@@ -66,7 +67,7 @@ export function ProjectSettings({ project, workspaceId, open, onClose }) {
   // ---------------------------------------------------------------------------
   function handleSave() {
     updateProject.mutate(
-      { id: project.id, name, color, wedding_date: weddingDate, archived },
+      { id: project.id, name, color, wedding_date: weddingDate || null, archived },
       {
         onSuccess: () => {
           onClose?.()
@@ -113,7 +114,7 @@ export function ProjectSettings({ project, workspaceId, open, onClose }) {
   // ---------------------------------------------------------------------------
   const errorMessage =
     updateProject.isError
-      ? (updateProject.error?.message ?? 'Something went wrong')
+      ? getApiError(updateProject.error)
       : null
 
   // ---------------------------------------------------------------------------

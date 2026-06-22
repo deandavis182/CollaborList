@@ -255,6 +255,31 @@ describe('ProjectSettings', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
+  it('null wedding_date: passes wedding_date: null (not empty string) when project has no date', () => {
+    const projectNoDate = { ...PROJECT, wedding_date: null }
+
+    render(
+      <ProjectSettings
+        project={projectNoDate}
+        workspaceId={1}
+        open={true}
+        onClose={vi.fn()}
+      />,
+      { wrapper: Wrapper }
+    )
+
+    // Click Save without entering a date
+    fireEvent.click(screen.getByRole('button', { name: /save/i }))
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 42, wedding_date: null }),
+      expect.any(Object)
+    )
+    // Must NOT be called with empty string
+    const call = mockUpdate.mock.calls[0][0]
+    expect(call.wedding_date).not.toBe('')
+  })
+
   it('shows error toast when update fails', () => {
     useUpdateProject.mockReturnValue({
       mutate: mockUpdate,

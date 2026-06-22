@@ -114,6 +114,23 @@ describe('WorkspaceSwitcher', () => {
     expect(screen.getByText(/no workspaces/i)).toBeInTheDocument()
   })
 
+  it('marks active workspace when store holds string "5" but api returns numeric id 5', () => {
+    // Simulate route-load: useParams gives string, store holds '5'
+    useStore.setState({ currentWorkspaceId: '5' })
+    useWorkspaces.mockReturnValue({
+      data: [
+        { id: 5, name: 'Route WS' },   // numeric from API
+        { id: 6, name: 'Other WS' },
+      ],
+      isLoading: false,
+    })
+
+    render(<WorkspaceSwitcher />, { wrapper: Wrapper })
+
+    expect(screen.getByTestId('workspace-item-5')).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByTestId('workspace-item-6')).not.toHaveAttribute('aria-current')
+  })
+
   it('renders a "+ New workspace" action button', () => {
     useWorkspaces.mockReturnValue({ data: [], isLoading: false })
 

@@ -12,6 +12,7 @@
 import { useState } from 'react'
 import { useTags, useCreateTag, useDeleteTag } from '../../lib/api.js'
 import { useStore } from '../../lib/store.js'
+import { getApiError } from '../../lib/apiError.js'
 import { Chip } from '../../ui/Chip.jsx'
 import { Button } from '../../ui/Button.jsx'
 import { Field } from '../../ui/Field.jsx'
@@ -72,7 +73,7 @@ export function TagManager({ workspaceId: propWorkspaceId }) {
           setColor('')
         },
         onError: (err) => {
-          setFormError(err?.message ?? 'Failed to create tag')
+          setFormError(getApiError(err, 'Failed to create tag'))
         },
       }
     )

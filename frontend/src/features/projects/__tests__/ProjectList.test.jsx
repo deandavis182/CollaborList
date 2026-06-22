@@ -153,6 +153,23 @@ describe('ProjectList', () => {
     expect(link).toHaveAttribute('href', '/w/7/p/p99')
   })
 
+  it('marks active project when store holds string "9" but api returns numeric id 9', () => {
+    // Simulate route-load: /w/5/p/9 sets store to string '9'
+    useProjects.mockReturnValue({
+      data: [
+        { id: 9, name: 'Route Project' },   // numeric from API
+        { id: 10, name: 'Other Project' },
+      ],
+      isLoading: false,
+    })
+    useStore.setState({ currentWorkspaceId: 5, currentProjectId: '9' })
+
+    render(<ProjectList />, { wrapper: Wrapper })
+
+    expect(screen.getByTestId('project-item-9')).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByTestId('project-item-10')).not.toHaveAttribute('aria-current')
+  })
+
   it('renders a "+ New project" button', () => {
     useProjects.mockReturnValue({ data: [], isLoading: false })
     useStore.setState({ currentWorkspaceId: 5 })

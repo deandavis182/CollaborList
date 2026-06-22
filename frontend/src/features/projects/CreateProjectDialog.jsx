@@ -12,6 +12,7 @@ import { Sheet } from '../../ui/Sheet.jsx'
 import { Field } from '../../ui/Field.jsx'
 import { Button } from '../../ui/Button.jsx'
 import { useCreateProject } from '../../lib/api.js'
+import { getApiError } from '../../lib/apiError.js'
 
 export function CreateProjectDialog({ open, onClose, workspaceId }) {
   const [name, setName] = useState('')
@@ -41,7 +42,7 @@ export function CreateProjectDialog({ open, onClose, workspaceId }) {
     onClose?.()
   }
 
-  const errorMessage = localError || (isError ? (error?.message ?? 'Something went wrong') : '')
+  const errorMessage = localError || (isError ? getApiError(error) : '')
 
   return (
     <Sheet

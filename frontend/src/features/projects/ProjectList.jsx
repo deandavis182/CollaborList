@@ -39,7 +39,7 @@ export function ProjectList() {
       ) : (
         <ul role="list" className="space-y-1">
           {projects.map((proj) => {
-            const isActive = proj.id === currentProjectId
+            const isActive = String(proj.id) === String(currentProjectId)
             return (
               <li key={proj.id}>
                 <Link
