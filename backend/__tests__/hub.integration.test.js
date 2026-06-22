@@ -2,6 +2,10 @@
 const { Pool } = require('pg');
 const { getWorkspaceRole } = require('../middleware/permissions');
 const ws = require('../services/workspaceService');
+const express = require('express');
+const request = require('supertest');
+const jwt = require('jsonwebtoken');
+const makeWorkspacesRouter = require('../routes/workspaces');
 
 const A = 'phase2-a@example.test';
 const B = 'phase2-b@example.test';
@@ -37,5 +41,63 @@ describe('Hub backend (real DB)', () => {
     expect(forB.find(x => x.id === w.id).role).toBe('member');
     await expect(ws.addMemberByEmail(pool, w.id, 'nope@x.test', 'member'))
       .rejects.toMatchObject({ code: 'NO_USER' });
+  });
+});
+
+describe('Workspace routes HTTP permissions (real DB)', () => {
+  let pool, ownerId, memberId, wsId, app;
+  const OWNER = 'phase2-http-owner@example.test';
+  const MEMBER = 'phase2-http-member@example.test';
+  const SECRET = process.env.JWT_SECRET || 'test-secret';
+  const tokenFor = (id, email) => jwt.sign({ id, email }, SECRET);
+
+  beforeAll(async () => {
+    pool = new Pool({
+      host: process.env.DB_HOST || 'postgres', port: process.env.DB_PORT || 5432,
+      database: process.env.DB_NAME || 'listapp', user: process.env.DB_USER || 'listuser',
+      password: process.env.DB_PASSWORD || 'listpass',
+    });
+    await pool.query('DELETE FROM users WHERE email = ANY($1)', [[OWNER, MEMBER]]);
+    ownerId = (await pool.query("INSERT INTO users (email,password_hash) VALUES ($1,'x') RETURNING id", [OWNER])).rows[0].id;
+    memberId = (await pool.query("INSERT INTO users (email,password_hash) VALUES ($1,'x') RETURNING id", [MEMBER])).rows[0].id;
+
+    // Real auth middleware mirroring server.js
+    const authenticateToken = (req, res, next) => {
+      const h = req.headers['authorization']; const t = h && h.split(' ')[1];
+      if (!t) return res.status(401).json({ error: 'Access token required' });
+      jwt.verify(t, SECRET, (err, user) => { if (err) return res.status(403).json({ error: 'Invalid token' }); req.user = user; next(); });
+    };
+    const sanitize = (s) => (s || '').toString();
+    app = express();
+    app.use(express.json());
+    app.use('/api/workspaces', makeWorkspacesRouter(authenticateToken, sanitize));
+
+    // Owner creates a workspace via the API, then adds member
+    const created = await request(app).post('/api/workspaces')
+      .set('Authorization', `Bearer ${tokenFor(ownerId, OWNER)}`).send({ name: 'HTTP WS' });
+    wsId = created.body.id;
+    await request(app).post(`/api/workspaces/${wsId}/members`)
+      .set('Authorization', `Bearer ${tokenFor(ownerId, OWNER)}`).send({ email: MEMBER, role: 'member' });
+  });
+  afterAll(async () => { await pool.query('DELETE FROM users WHERE email = ANY($1)', [[OWNER, MEMBER]]); await pool.end(); });
+
+  test('unauthenticated request is 401', async () => {
+    const r = await request(app).get('/api/workspaces'); expect(r.status).toBe(401);
+  });
+  test('member cannot rename workspace (needs admin) -> 403', async () => {
+    const r = await request(app).put(`/api/workspaces/${wsId}`)
+      .set('Authorization', `Bearer ${tokenFor(memberId, MEMBER)}`).send({ name: 'Nope' });
+    expect(r.status).toBe(403);
+  });
+  test('owner can rename workspace -> 200', async () => {
+    const r = await request(app).put(`/api/workspaces/${wsId}`)
+      .set('Authorization', `Bearer ${tokenFor(ownerId, OWNER)}`).send({ name: 'Renamed' });
+    expect(r.status).toBe(200);
+    expect(r.body.name).toBe('Renamed');
+  });
+  test('member cannot remove a member (needs owner) -> 403', async () => {
+    const r = await request(app).delete(`/api/workspaces/${wsId}/members/${ownerId}`)
+      .set('Authorization', `Bearer ${tokenFor(memberId, MEMBER)}`);
+    expect(r.status).toBe(403);
   });
 });

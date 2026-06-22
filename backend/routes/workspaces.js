@@ -38,7 +38,9 @@ module.exports = (authenticateToken, sanitize) => {
     const name = sanitize(req.body.name);
     if (!name) return res.status(400).json({ error: 'Workspace name required' });
     try {
-      res.json(await svc.rename(pool, req.params.workspaceId, name));
+      const updated = await svc.rename(pool, req.params.workspaceId, name);
+      if (!updated) return res.status(404).json({ error: 'Workspace not found' });
+      res.json(updated);
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: 'Failed to update workspace' });
@@ -70,7 +72,7 @@ module.exports = (authenticateToken, sanitize) => {
   router.post('/:workspaceId/members', requireWorkspaceRole(pool, 'admin'), async (req, res) => {
     try {
       res.status(201).json(
-        await svc.addMemberByEmail(pool, req.params.workspaceId, req.body.email, req.body.role)
+        await svc.addMemberByEmail(pool, req.params.workspaceId, sanitize(req.body.email), req.body.role)
       );
     } catch (e) {
       if (e.code === 'NO_USER') {
