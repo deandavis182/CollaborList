@@ -13,9 +13,10 @@ vi.mock('../../lib/api.js', () => ({
   useWorkspaces: vi.fn(),
   useCreateWorkspace: vi.fn(),
   useProjects: vi.fn(),
+  useCreateProject: vi.fn(),
 }))
 
-import { useWorkspaces, useCreateWorkspace, useProjects } from '../../lib/api.js'
+import { useWorkspaces, useCreateWorkspace, useProjects, useCreateProject } from '../../lib/api.js'
 import { useStore } from '../../lib/store.js'
 import { Sidebar } from '../Sidebar.jsx'
 
@@ -52,6 +53,12 @@ describe('Sidebar — workspaces (via WorkspaceSwitcher)', () => {
     resetStore()
     useProjects.mockReturnValue({ data: [], isLoading: false })
     useCreateWorkspace.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      isError: false,
+      error: null,
+    })
+    useCreateProject.mockReturnValue({
       mutate: vi.fn(),
       isPending: false,
       isError: false,
@@ -150,6 +157,12 @@ describe('Sidebar — projects', () => {
       isError: false,
       error: null,
     })
+    useCreateProject.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      isError: false,
+      error: null,
+    })
     useWorkspaces.mockReturnValue({
       data: [{ id: 5, name: 'My WS', role: 'owner' }],
       isLoading: false,
@@ -188,7 +201,7 @@ describe('Sidebar — projects', () => {
 
     render(<Sidebar />, { wrapper: Wrapper })
 
-    fireEvent.click(screen.getByTestId('project-proj-99'))
+    fireEvent.click(screen.getByTestId('project-item-proj-99'))
 
     expect(useStore.getState().currentProjectId).toBe('proj-99')
   })

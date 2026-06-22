@@ -12,6 +12,7 @@
 
 import { createBrowserRouter, RouterProvider, Routes, Route, useParams, Outlet } from 'react-router-dom'
 import { AppLayout } from './AppLayout.jsx'
+import { ProjectView } from '../features/projects/ProjectView.jsx'
 
 // ---------------------------------------------------------------------------
 // Placeholder views
@@ -36,16 +37,8 @@ export function WorkspaceView() {
   )
 }
 
-/** Project: shown at "/w/:workspaceId/p/:projectId". */
-export function ProjectView() {
-  const { workspaceId, projectId } = useParams()
-  return (
-    <div data-testid="project-view" className="p-8">
-      <p data-testid="workspace-id-display">Workspace: {workspaceId}</p>
-      <p data-testid="project-id-display">Project: {projectId}</p>
-    </div>
-  )
-}
+// ProjectView is now the real feature component from features/projects/ProjectView.jsx
+export { ProjectView }
 
 // ---------------------------------------------------------------------------
 // Plain <Routes> tree — used in tests with <MemoryRouter>

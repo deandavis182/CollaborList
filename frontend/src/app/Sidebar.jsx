@@ -2,20 +2,13 @@
  * Sidebar — desktop left navigation.
  *
  * Renders WorkspaceSwitcher at the top, then the projects for the
- * current workspace below.
+ * current workspace below (via ProjectList).
  */
 
-import { useProjects } from '../lib/api.js'
-import { useStore } from '../lib/store.js'
 import { WorkspaceSwitcher } from '../features/workspaces/WorkspaceSwitcher.jsx'
+import { ProjectList } from '../features/projects/ProjectList.jsx'
 
 export function Sidebar() {
-  const currentWorkspaceId = useStore((s) => s.currentWorkspaceId)
-  const currentProjectId = useStore((s) => s.currentProjectId)
-  const setCurrentProject = useStore((s) => s.setCurrentProject)
-
-  const { data: projects = [], isLoading: projLoading } = useProjects(currentWorkspaceId)
-
   return (
     <nav
       data-testid="sidebar"
@@ -34,38 +27,7 @@ export function Sidebar() {
         <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
           Projects
         </p>
-
-        {!currentWorkspaceId ? (
-          <p className="text-sm text-text-muted px-2 py-1">Select a workspace</p>
-        ) : projLoading ? (
-          <p className="text-sm text-text-muted px-2 py-1">Loading…</p>
-        ) : projects.length === 0 ? (
-          <p className="text-sm text-text-muted px-2 py-1">No projects</p>
-        ) : (
-          <ul role="list" className="space-y-1">
-            {projects.map((proj) => {
-              const isActive = proj.id === currentProjectId
-              return (
-                <li key={proj.id}>
-                  <button
-                    type="button"
-                    data-testid={`project-${proj.id}`}
-                    aria-current={isActive ? 'page' : undefined}
-                    onClick={() => setCurrentProject(proj.id)}
-                    className={[
-                      'w-full text-left px-3 py-2 rounded-md text-sm transition-colors',
-                      isActive
-                        ? 'bg-surface-2 text-text font-medium'
-                        : 'text-text-muted hover:bg-surface-2 hover:text-text',
-                    ].join(' ')}
-                  >
-                    {proj.name}
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        )}
+        <ProjectList />
       </div>
     </nav>
   )
