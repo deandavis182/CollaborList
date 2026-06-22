@@ -1,19 +1,16 @@
 /**
  * Sidebar — desktop left navigation.
  *
- * Shows a workspace switcher at top (from useWorkspaces), highlights the
- * current workspace, and clicking a workspace sets it via the store.
- * Below shows the projects for the current workspace (from useProjects).
+ * Renders WorkspaceSwitcher at the top, then the projects for the
+ * current workspace below.
  */
 
-import { useWorkspaces, useProjects } from '../lib/api.js'
+import { useProjects } from '../lib/api.js'
 import { useStore } from '../lib/store.js'
+import { WorkspaceSwitcher } from '../features/workspaces/WorkspaceSwitcher.jsx'
 
 export function Sidebar() {
-  const { data: workspaces = [], isLoading: wsLoading } = useWorkspaces()
-
   const currentWorkspaceId = useStore((s) => s.currentWorkspaceId)
-  const setCurrentWorkspace = useStore((s) => s.setCurrentWorkspace)
   const currentProjectId = useStore((s) => s.currentProjectId)
   const setCurrentProject = useStore((s) => s.setCurrentProject)
 
@@ -29,36 +26,7 @@ export function Sidebar() {
         <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
           Workspaces
         </p>
-
-        {wsLoading ? (
-          <p className="text-sm text-text-muted px-2 py-1">Loading…</p>
-        ) : workspaces.length === 0 ? (
-          <p className="text-sm text-text-muted px-2 py-1">No workspaces</p>
-        ) : (
-          <ul role="list" className="space-y-1">
-            {workspaces.map((ws) => {
-              const isActive = ws.id === currentWorkspaceId
-              return (
-                <li key={ws.id}>
-                  <button
-                    type="button"
-                    data-testid={`workspace-${ws.id}`}
-                    aria-current={isActive ? 'page' : undefined}
-                    onClick={() => setCurrentWorkspace(ws.id)}
-                    className={[
-                      'w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors',
-                      isActive
-                        ? 'bg-primary text-white'
-                        : 'text-text hover:bg-surface-2',
-                    ].join(' ')}
-                  >
-                    {ws.name}
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        )}
+        <WorkspaceSwitcher />
       </div>
 
       {/* Projects for Current Workspace */}

@@ -16,6 +16,7 @@ import React from 'react'
 // ---------------------------------------------------------------------------
 vi.mock('../../lib/api.js', () => ({
   useWorkspaces: vi.fn(() => ({ data: [], isLoading: false })),
+  useCreateWorkspace: vi.fn(() => ({ mutate: vi.fn(), isPending: false, isError: false, error: null })),
   useProjects: vi.fn(() => ({ data: [], isLoading: false })),
 }))
 

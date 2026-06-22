@@ -5,14 +5,17 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import React from 'react'
 
 // ---------------------------------------------------------------------------
-// Mock api hooks before importing the component
+// Mock api hooks before importing the component.
+// useWorkspaces and useCreateWorkspace are used by WorkspaceSwitcher (rendered
+// inside Sidebar). useProjects is used directly by Sidebar.
 // ---------------------------------------------------------------------------
 vi.mock('../../lib/api.js', () => ({
   useWorkspaces: vi.fn(),
+  useCreateWorkspace: vi.fn(),
   useProjects: vi.fn(),
 }))
 
-import { useWorkspaces, useProjects } from '../../lib/api.js'
+import { useWorkspaces, useCreateWorkspace, useProjects } from '../../lib/api.js'
 import { useStore } from '../../lib/store.js'
 import { Sidebar } from '../Sidebar.jsx'
 
@@ -44,17 +47,23 @@ function resetStore() {
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
-describe('Sidebar — workspaces', () => {
+describe('Sidebar — workspaces (via WorkspaceSwitcher)', () => {
   beforeEach(() => {
     resetStore()
     useProjects.mockReturnValue({ data: [], isLoading: false })
+    useCreateWorkspace.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      isError: false,
+      error: null,
+    })
   })
 
   it('renders a list of workspaces', () => {
     useWorkspaces.mockReturnValue({
       data: [
-        { id: 1, name: 'Design Team' },
-        { id: 2, name: 'Engineering' },
+        { id: 1, name: 'Design Team', role: 'owner' },
+        { id: 2, name: 'Engineering', role: 'member' },
       ],
       isLoading: false,
     })
@@ -83,13 +92,14 @@ describe('Sidebar — workspaces', () => {
 
   it('clicking a workspace calls setCurrentWorkspace via the store', () => {
     useWorkspaces.mockReturnValue({
-      data: [{ id: 42, name: 'My Workspace' }],
+      data: [{ id: 42, name: 'My Workspace', role: 'owner' }],
       isLoading: false,
     })
 
     render(<Sidebar />, { wrapper: Wrapper })
 
-    fireEvent.click(screen.getByTestId('workspace-42'))
+    // WorkspaceSwitcher uses data-testid="workspace-item-{id}"
+    fireEvent.click(screen.getByTestId('workspace-item-42'))
 
     expect(useStore.getState().currentWorkspaceId).toBe(42)
   })
@@ -98,16 +108,16 @@ describe('Sidebar — workspaces', () => {
     useStore.setState({ currentWorkspaceId: 7 })
     useWorkspaces.mockReturnValue({
       data: [
-        { id: 7, name: 'Active WS' },
-        { id: 8, name: 'Other WS' },
+        { id: 7, name: 'Active WS', role: 'owner' },
+        { id: 8, name: 'Other WS', role: 'member' },
       ],
       isLoading: false,
     })
 
     render(<Sidebar />, { wrapper: Wrapper })
 
-    const activeBtn = screen.getByTestId('workspace-7')
-    const inactiveBtn = screen.getByTestId('workspace-8')
+    const activeBtn = screen.getByTestId('workspace-item-7')
+    const inactiveBtn = screen.getByTestId('workspace-item-8')
 
     expect(activeBtn).toHaveAttribute('aria-current', 'page')
     expect(inactiveBtn).not.toHaveAttribute('aria-current')
@@ -117,16 +127,16 @@ describe('Sidebar — workspaces', () => {
     useStore.setState({ currentWorkspaceId: 1 })
     useWorkspaces.mockReturnValue({
       data: [
-        { id: 1, name: 'WS One' },
-        { id: 2, name: 'WS Two' },
+        { id: 1, name: 'WS One', role: 'owner' },
+        { id: 2, name: 'WS Two', role: 'member' },
       ],
       isLoading: false,
     })
 
     render(<Sidebar />, { wrapper: Wrapper })
 
-    expect(screen.getByTestId('workspace-1').className).toContain('bg-primary')
-    expect(screen.getByTestId('workspace-2').className).not.toContain('bg-primary')
+    expect(screen.getByTestId('workspace-item-1').className).toContain('bg-primary')
+    expect(screen.getByTestId('workspace-item-2').className).not.toContain('bg-primary')
   })
 })
 
@@ -134,8 +144,14 @@ describe('Sidebar — projects', () => {
   beforeEach(() => {
     resetStore()
     useStore.setState({ currentWorkspaceId: 5 })
+    useCreateWorkspace.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      isError: false,
+      error: null,
+    })
     useWorkspaces.mockReturnValue({
-      data: [{ id: 5, name: 'My WS' }],
+      data: [{ id: 5, name: 'My WS', role: 'owner' }],
       isLoading: false,
     })
   })
