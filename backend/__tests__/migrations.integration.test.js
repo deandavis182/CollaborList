@@ -72,4 +72,68 @@ describe('V2 migrations (real DB)', () => {
     `);
     expect(lcols.rows.map(r => r.column_name)).toContain('project_id');
   });
+
+  test('backfill creates Personal workspace, General project, links list, sets status — losslessly', async () => {
+    const beforeUsers = await pool.query('SELECT COUNT(*)::int AS n FROM users');
+    const beforeItems = await pool.query('SELECT COUNT(*)::int AS n FROM list_items');
+
+    await runMigrations(pool);
+
+    // Personal workspace owned by the seeded user
+    const ws = await pool.query(
+      "SELECT id FROM workspaces WHERE owner_id = $1 AND name = 'Personal'", [userId]
+    );
+    expect(ws.rows).toHaveLength(1);
+    const wsId = ws.rows[0].id;
+
+    // Owner membership
+    const mem = await pool.query(
+      "SELECT role FROM workspace_members WHERE workspace_id = $1 AND user_id = $2",
+      [wsId, userId]
+    );
+    expect(mem.rows[0].role).toBe('owner');
+
+    // General project in that workspace
+    const proj = await pool.query(
+      "SELECT id FROM projects WHERE workspace_id = $1 AND name = 'General'", [wsId]
+    );
+    expect(proj.rows).toHaveLength(1);
+
+    // The seeded list is linked to that project
+    const linked = await pool.query(
+      'SELECT project_id FROM lists WHERE user_id = $1', [userId]
+    );
+    expect(linked.rows[0].project_id).toBe(proj.rows[0].id);
+
+    // status backfilled from completed for the seeded items
+    const statuses = await pool.query(`
+      SELECT li.completed, li.status FROM list_items li
+      JOIN lists l ON l.id = li.list_id WHERE l.user_id = $1 ORDER BY li.completed
+    `, [userId]);
+    const map = Object.fromEntries(statuses.rows.map(r => [String(r.completed), r.status]));
+    expect(map['true']).toBe('Done');
+    expect(map['false']).toBe('To do');
+
+    // ZERO LOSS: no users or items were removed
+    const afterUsers = await pool.query('SELECT COUNT(*)::int AS n FROM users');
+    const afterItems = await pool.query('SELECT COUNT(*)::int AS n FROM list_items');
+    expect(afterUsers.rows[0].n).toBeGreaterThanOrEqual(beforeUsers.rows[0].n);
+    expect(afterItems.rows[0].n).toBe(beforeItems.rows[0].n);
+  });
+
+  test('backfill is idempotent — re-running the 012 SQL makes no duplicates', async () => {
+    await runMigrations(pool);
+    const sql = migrations.find(m => m.name === '012_backfill_workspaces_projects').sql;
+    // Run the raw backfill SQL again directly (runMigrations is name-gated and won't re-run it)
+    await pool.query(sql);
+    const ws = await pool.query(
+      "SELECT COUNT(*)::int AS n FROM workspaces WHERE owner_id = $1 AND name = 'Personal'", [userId]
+    );
+    expect(ws.rows[0].n).toBe(1);
+    const proj = await pool.query(`
+      SELECT COUNT(*)::int AS n FROM projects p
+      JOIN workspaces w ON w.id = p.workspace_id
+      WHERE w.owner_id = $1 AND p.name = 'General'`, [userId]);
+    expect(proj.rows[0].n).toBe(1);
+  });
 });

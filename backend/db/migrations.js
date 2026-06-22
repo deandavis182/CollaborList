@@ -154,6 +154,43 @@ const migrations = [
       CREATE INDEX IF NOT EXISTS idx_list_items_due ON list_items(due_date);
     `
   },
+  {
+    name: '012_backfill_workspaces_projects',
+    sql: `
+      -- 1. A "Personal" workspace for every user who doesn't own one yet
+      INSERT INTO workspaces (name, owner_id)
+      SELECT 'Personal', u.id FROM users u
+      WHERE NOT EXISTS (
+        SELECT 1 FROM workspaces w WHERE w.owner_id = u.id AND w.name = 'Personal'
+      );
+
+      -- 2. Owner membership for every workspace owner
+      INSERT INTO workspace_members (workspace_id, user_id, role)
+      SELECT w.id, w.owner_id, 'owner' FROM workspaces w
+      WHERE NOT EXISTS (
+        SELECT 1 FROM workspace_members m
+        WHERE m.workspace_id = w.id AND m.user_id = w.owner_id
+      );
+
+      -- 3. A "General" project in each Personal workspace
+      INSERT INTO projects (workspace_id, name)
+      SELECT w.id, 'General' FROM workspaces w
+      WHERE w.name = 'Personal'
+        AND NOT EXISTS (
+          SELECT 1 FROM projects p WHERE p.workspace_id = w.id AND p.name = 'General'
+        );
+
+      -- 4. Attach each orphan list to its owner's General project
+      UPDATE lists l SET project_id = p.id
+      FROM workspaces w
+      JOIN projects p ON p.workspace_id = w.id AND p.name = 'General'
+      WHERE w.owner_id = l.user_id AND l.project_id IS NULL;
+
+      -- 5. Backfill status from completed (only where unset)
+      UPDATE list_items SET status = CASE WHEN completed THEN 'Done' ELSE 'To do' END
+      WHERE status IS NULL;
+    `
+  },
 ];
 
 async function runMigrations(pool = sharedPool) {
