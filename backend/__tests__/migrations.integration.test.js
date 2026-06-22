@@ -117,7 +117,7 @@ describe('V2 migrations (real DB)', () => {
     // ZERO LOSS: no users or items were removed
     const afterUsers = await pool.query('SELECT COUNT(*)::int AS n FROM users');
     const afterItems = await pool.query('SELECT COUNT(*)::int AS n FROM list_items');
-    expect(afterUsers.rows[0].n).toBeGreaterThanOrEqual(beforeUsers.rows[0].n);
+    expect(afterUsers.rows[0].n).toBe(beforeUsers.rows[0].n);
     expect(afterItems.rows[0].n).toBe(beforeItems.rows[0].n);
   });
 
