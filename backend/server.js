@@ -172,6 +172,8 @@ app.post('/api/auth/register', async (req, res) => {
     );
 
     const user = result.rows[0];
+    try { await require('./services/workspaceService').provisionNewUser(pool, user.id); }
+    catch (e) { console.error('Failed to provision workspace for new user:', e); }
     const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '24h' });
 
     res.status(201).json({ token, user: { id: user.id, email: user.email } });
@@ -251,6 +253,8 @@ app.post('/api/auth/google', async (req, res) => {
         [email, googleId, 'google-oauth-no-password']
       );
       user = result;
+      try { await require('./services/workspaceService').provisionNewUser(pool, user.rows[0].id); }
+      catch (e) { console.error('Failed to provision workspace for new Google user:', e); }
     } else if (!user.rows[0].google_id) {
       // Link existing account with Google
       await pool.query(

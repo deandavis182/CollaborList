@@ -11,6 +11,31 @@ const makeWorkspacesRouter = require('../routes/workspaces');
 const A = 'phase2-a@example.test';
 const B = 'phase2-b@example.test';
 
+describe('provisionNewUser (real DB)', () => {
+  let pool;
+  const EMAIL = 'phase2-new@example.test';
+
+  beforeAll(async () => {
+    pool = new Pool({
+      host: process.env.DB_HOST || 'postgres', port: process.env.DB_PORT || 5432,
+      database: process.env.DB_NAME || 'listapp', user: process.env.DB_USER || 'listuser',
+      password: process.env.DB_PASSWORD || 'listpass',
+    });
+  });
+  afterAll(async () => { await pool.query('DELETE FROM users WHERE email=$1', [EMAIL]); await pool.end(); });
+
+  test('provisionNewUser creates Personal ws + General project + owner membership', async () => {
+    await pool.query('DELETE FROM users WHERE email=$1', [EMAIL]);
+    const id = (await pool.query("INSERT INTO users (email,password_hash) VALUES ($1,'x') RETURNING id", [EMAIL])).rows[0].id;
+    await ws.provisionNewUser(pool, id);
+    const w = await pool.query("SELECT id FROM workspaces WHERE owner_id=$1 AND name='Personal'", [id]);
+    expect(w.rows).toHaveLength(1);
+    expect(await getWorkspaceRole(pool, w.rows[0].id, id)).toBe('owner');
+    const p = await pool.query("SELECT id FROM projects WHERE workspace_id=$1 AND name='General'", [w.rows[0].id]);
+    expect(p.rows).toHaveLength(1);
+  });
+});
+
 describe('Hub backend (real DB)', () => {
   let pool, aId, bId, wsId;
   beforeAll(async () => {
