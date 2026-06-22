@@ -209,8 +209,10 @@ module.exports = {
 In `backend/package.json` `scripts`, add:
 
 ```json
-"test:integration": "jest --runInBand --testMatch=\"**/__tests__/**/*.integration.test.js\""
+"test:integration": "jest --runInBand --testPathPattern=\"integration\\.test\\.js$\" --testPathIgnorePatterns=\"/node_modules/\""
 ```
+
+> Note: a CLI `--testMatch` does **not** override `testPathIgnorePatterns` from `jest.config.js`, so it would silently find no tests. Use `--testPathPattern` (to select the integration files) plus an explicit `--testPathIgnorePatterns` that drops the integration-exclusion (keeping only `/node_modules/`).
 
 - [ ] **Step 3: Write the harness test (real DB, NOT mocked)**
 
