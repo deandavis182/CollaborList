@@ -109,7 +109,7 @@ describe('Sidebar — workspaces', () => {
     const activeBtn = screen.getByTestId('workspace-7')
     const inactiveBtn = screen.getByTestId('workspace-8')
 
-    expect(activeBtn).toHaveAttribute('aria-current', 'true')
+    expect(activeBtn).toHaveAttribute('aria-current', 'page')
     expect(inactiveBtn).not.toHaveAttribute('aria-current')
   })
 

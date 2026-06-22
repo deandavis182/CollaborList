@@ -12,6 +12,8 @@
  * 'fullscreen' = full-screen sheet (mobile)
  */
 
+import { useEffect } from 'react'
+
 export function Sheet({
   variant = 'drawer',
   open = false,
@@ -19,6 +21,21 @@ export function Sheet({
   title,
   children,
 }) {
+  useEffect(() => {
+    if (!open) return
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        onClose?.()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [open, onClose])
+
   if (!open) return null
 
   const panelClasses =

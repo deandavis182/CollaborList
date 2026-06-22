@@ -89,4 +89,44 @@ describe('Sheet', () => {
     const dialog = screen.getByRole('dialog')
     expect(dialog.className).toContain('inset-0')
   })
+
+  test('calls onClose when Escape is pressed while open', () => {
+    const onClose = vi.fn()
+    render(
+      <Sheet open={true} onClose={onClose} title="Details">
+        Content
+      </Sheet>
+    )
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  test('does not call onClose when Escape is pressed while closed', () => {
+    const onClose = vi.fn()
+    render(
+      <Sheet open={false} onClose={onClose} title="Details">
+        Content
+      </Sheet>
+    )
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  test('removes Escape listener when sheet closes (no leak)', () => {
+    const onClose = vi.fn()
+    const { rerender } = render(
+      <Sheet open={true} onClose={onClose} title="Details">
+        Content
+      </Sheet>
+    )
+    // Close the sheet
+    rerender(
+      <Sheet open={false} onClose={onClose} title="Details">
+        Content
+      </Sheet>
+    )
+    // Escape now should not fire onClose
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).not.toHaveBeenCalled()
+  })
 })

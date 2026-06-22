@@ -43,7 +43,7 @@ export function Sidebar() {
                   <button
                     type="button"
                     data-testid={`workspace-${ws.id}`}
-                    aria-current={isActive ? 'true' : undefined}
+                    aria-current={isActive ? 'page' : undefined}
                     onClick={() => setCurrentWorkspace(ws.id)}
                     className={[
                       'w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors',
@@ -82,7 +82,7 @@ export function Sidebar() {
                   <button
                     type="button"
                     data-testid={`project-${proj.id}`}
-                    aria-current={isActive ? 'true' : undefined}
+                    aria-current={isActive ? 'page' : undefined}
                     onClick={() => setCurrentProject(proj.id)}
                     className={[
                       'w-full text-left px-3 py-2 rounded-md text-sm transition-colors',
