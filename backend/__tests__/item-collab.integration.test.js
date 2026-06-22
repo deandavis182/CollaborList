@@ -285,16 +285,14 @@ describe('Item collaboration fields (real DB)', () => {
 
         if (text !== undefined) { query += `, text = $${paramCount++}`; params.push(text); }
         if (status !== undefined) {
-          // status provided: set status and sync completed (unless completed also explicitly provided)
+          // status provided: status wins — always derive completed from status
           query += `, status = $${paramCount++}`; params.push(status);
-          if (completed === undefined) {
-            query += `, completed = $${paramCount++}`; params.push(status === 'Done');
-          }
+          query += `, completed = $${paramCount++}`; params.push(status === 'Done');
         } else if (completed !== undefined) {
           // Only completed provided: sync status too
           query += `, status = $${paramCount++}`; params.push(completed ? 'Done' : 'To do');
+          query += `, completed = $${paramCount++}`; params.push(completed);
         }
-        if (completed !== undefined) { query += `, completed = $${paramCount++}`; params.push(completed); }
         if (position !== undefined) { query += `, position = $${paramCount++}`; params.push(position); }
         if (notes !== undefined) { query += `, notes = $${paramCount++}`; params.push(notes); }
         if (parent_id !== undefined) { query += `, parent_id = $${paramCount++}`; params.push(parent_id); }
@@ -526,20 +524,28 @@ describe('Item collaboration fields (real DB)', () => {
       expect(r.body.error).toBe('Invalid status');
     });
 
-    test('PUT both status and completed: status wins for completed value', async () => {
+    test('PUT both status:Done + completed:false → status wins, completed=true', async () => {
       const item = await seedItem();
-      // status=Doing (not Done) but completed=true: status wins → completed should be false via status
-      // Actually spec says: if both provided, explicit status wins for completed.
-      // So status=Done + completed=false → completed is still set explicitly to false.
-      // But status is stored as Done.
-      // Let's test: status=Done + completed=false → completed=false (explicit wins) and status=Done
+      // Spec §4: status='Done' ⇔ completed=true. When both are provided, status wins for completed.
+      // So status=Done + completed=false → completed must be true (derived from status).
       const r = await request(app)
         .put(`/api/items/${item.id}`)
         .set('Authorization', `Bearer ${ownerToken}`)
         .send({ status: 'Done', completed: false });
       expect(r.status).toBe(200);
       expect(r.body.status).toBe('Done');
-      // When both provided: status sets status, completed is explicitly set (no auto-sync of completed)
+      expect(r.body.completed).toBe(true);
+    });
+
+    test('PUT both status:Doing + completed:true → status wins, completed=false', async () => {
+      const item = await seedItem({ status: 'Done', completed: true });
+      // status=Doing is not Done, so completed must be false (derived from status).
+      const r = await request(app)
+        .put(`/api/items/${item.id}`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ status: 'Doing', completed: true });
+      expect(r.status).toBe(200);
+      expect(r.body.status).toBe('Doing');
       expect(r.body.completed).toBe(false);
     });
   });

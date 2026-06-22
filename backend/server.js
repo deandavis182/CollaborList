@@ -838,19 +838,15 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
     }
     // Status/completed write-time sync
     if (status !== undefined) {
-      // status provided: update status and auto-sync completed (unless completed also explicitly provided)
+      // status provided: status wins — always derive completed from status
       query += `, status = $${paramCount++}`;
       params.push(status);
-      if (completed === undefined) {
-        query += `, completed = $${paramCount++}`;
-        params.push(status === 'Done');
-      }
+      query += `, completed = $${paramCount++}`;
+      params.push(status === 'Done');
     } else if (completed !== undefined) {
       // Only completed provided: sync status too
       query += `, status = $${paramCount++}`;
       params.push(completed ? 'Done' : 'To do');
-    }
-    if (completed !== undefined) {
       query += `, completed = $${paramCount++}`;
       params.push(completed);
     }
