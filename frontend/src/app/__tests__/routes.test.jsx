@@ -1,8 +1,8 @@
 /**
- * routes.test.jsx — tests for the V2 router and placeholder views.
+ * routes.test.jsx — tests for the V2 router and real views.
  *
  * Uses <MemoryRouter> + <AppRoutes> so no BrowserRouter/JSDOM history issues.
- * Mocks ../../lib/api so Sidebar hooks never hit the network.
+ * Mocks ../../lib/api so all hooks never hit the network.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -12,7 +12,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import React from 'react'
 
 // ---------------------------------------------------------------------------
-// Mock api so Sidebar hooks don't hit the network
+// Mock api so all hooks don't hit the network
 // ---------------------------------------------------------------------------
 vi.mock('../../lib/api.js', () => ({
   useWorkspaces: vi.fn(() => ({ data: [], isLoading: false })),
@@ -20,8 +20,17 @@ vi.mock('../../lib/api.js', () => ({
   useProjects: vi.fn(() => ({ data: [], isLoading: false })),
   useCreateProject: vi.fn(() => ({ mutate: vi.fn(), isPending: false, isError: false, error: null })),
   useProjectLists: vi.fn(() => ({ data: [], isLoading: false })),
+  useUpdateProject: vi.fn(() => ({ mutate: vi.fn(), isPending: false, isError: false, error: null })),
+  useDeleteProject: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useTags: vi.fn(() => ({ data: [], isLoading: false })),
+  useCreateTag: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useDeleteTag: vi.fn(() => ({ mutate: vi.fn() })),
+  useWorkspaceMembers: vi.fn(() => ({ data: [], isLoading: false })),
+  useAddMember: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
+  useRemoveMember: vi.fn(() => ({ mutate: vi.fn() })),
 }))
 
+import { useWorkspaces, useProjects } from '../../lib/api.js'
 import { useStore } from '../../lib/store.js'
 import { AppRoutes } from '../routes.jsx'
 import { Providers } from '../providers.jsx'
@@ -61,23 +70,48 @@ function resetStore() {
 }
 
 // ---------------------------------------------------------------------------
-// Tests
+// Tests — HomeView
 // ---------------------------------------------------------------------------
 
 describe('routes — home (/)', () => {
-  beforeEach(resetStore)
+  beforeEach(() => {
+    resetStore()
+    useWorkspaces.mockReturnValue({ data: [], isLoading: false })
+  })
 
-  it('renders the HomeView placeholder at /', () => {
+  it('renders the HomeView at /', () => {
     renderAt('/')
     expect(screen.getByTestId('home-view')).toBeInTheDocument()
   })
 
-  it('shows "Select a workspace" text inside the HomeView at /', () => {
+  it('shows welcome text when no workspaces exist', () => {
+    useWorkspaces.mockReturnValue({ data: [], isLoading: false })
     renderAt('/')
-    // "Select a workspace" also appears in Sidebar (projects prompt), so
-    // assert it appears inside the home-view specifically.
+    const homeView = screen.getByTestId('home-view')
+    expect(homeView).toHaveTextContent('CollaborList')
+  })
+
+  it('shows "Select a workspace" heading when workspaces exist but none is selected', () => {
+    useWorkspaces.mockReturnValue({
+      data: [{ id: 'ws-1', name: 'My Workspace' }],
+      isLoading: false,
+    })
+    renderAt('/')
     const homeView = screen.getByTestId('home-view')
     expect(homeView).toHaveTextContent('Select a workspace')
+  })
+
+  it('renders workspace links for each workspace on home', () => {
+    useWorkspaces.mockReturnValue({
+      data: [
+        { id: 'ws-1', name: 'Workspace One' },
+        { id: 'ws-2', name: 'Workspace Two' },
+      ],
+      isLoading: false,
+    })
+    renderAt('/')
+    expect(screen.getByTestId('home-workspace-link-ws-1')).toBeInTheDocument()
+    expect(screen.getByTestId('home-workspace-link-ws-2')).toBeInTheDocument()
   })
 
   it('renders AppLayout (main-content area) at /', () => {
@@ -86,8 +120,16 @@ describe('routes — home (/)', () => {
   })
 })
 
+// ---------------------------------------------------------------------------
+// Tests — WorkspaceView
+// ---------------------------------------------------------------------------
+
 describe('routes — workspace (/w/:workspaceId)', () => {
-  beforeEach(resetStore)
+  beforeEach(() => {
+    resetStore()
+    useWorkspaces.mockReturnValue({ data: [], isLoading: false })
+    useProjects.mockReturnValue({ data: [], isLoading: false })
+  })
 
   it('renders WorkspaceView at /w/abc', () => {
     renderAt('/w/abc')
@@ -103,10 +145,48 @@ describe('routes — workspace (/w/:workspaceId)', () => {
     renderAt('/w/abc')
     expect(screen.getByTestId('main-content')).toBeInTheDocument()
   })
+
+  it('syncs workspaceId from the URL param into the store', async () => {
+    renderAt('/w/ws-42')
+    // The WorkspaceView effect sets currentWorkspaceId via store
+    expect(useStore.getState().currentWorkspaceId).toBe('ws-42')
+  })
+
+  it('shows empty state when workspace has no projects', () => {
+    useProjects.mockReturnValue({ data: [], isLoading: false })
+    renderAt('/w/abc')
+    expect(screen.getByTestId('workspace-view-empty')).toBeInTheDocument()
+  })
+
+  it('shows project links when workspace has projects', () => {
+    useProjects.mockReturnValue({
+      data: [
+        { id: 'p1', name: 'Alpha' },
+        { id: 'p2', name: 'Beta' },
+      ],
+      isLoading: false,
+    })
+    renderAt('/w/abc')
+    expect(screen.getByTestId('workspace-project-link-p1')).toBeInTheDocument()
+    expect(screen.getByTestId('workspace-project-link-p2')).toBeInTheDocument()
+  })
+
+  it('renders a workspace settings button', () => {
+    renderAt('/w/abc')
+    expect(screen.getByTestId('workspace-settings-btn')).toBeInTheDocument()
+  })
 })
 
+// ---------------------------------------------------------------------------
+// Tests — ProjectView route
+// ---------------------------------------------------------------------------
+
 describe('routes — project (/w/:workspaceId/p/:projectId)', () => {
-  beforeEach(resetStore)
+  beforeEach(() => {
+    resetStore()
+    useWorkspaces.mockReturnValue({ data: [], isLoading: false })
+    useProjects.mockReturnValue({ data: [], isLoading: false })
+  })
 
   it('renders ProjectView at /w/abc/p/xyz', () => {
     renderAt('/w/abc/p/xyz')
@@ -133,10 +213,34 @@ describe('routes — project (/w/:workspaceId/p/:projectId)', () => {
     expect(screen.getByTestId('workspace-id-display')).toHaveTextContent('ws-1')
     expect(screen.getByTestId('project-id-display')).toHaveTextContent('proj-99')
   })
+
+  it('syncs workspaceId and projectId into the store', () => {
+    renderAt('/w/ws-5/p/proj-7')
+    expect(useStore.getState().currentWorkspaceId).toBe('ws-5')
+    expect(useStore.getState().currentProjectId).toBe('proj-7')
+  })
+
+  it('renders a project settings button', () => {
+    renderAt('/w/abc/p/xyz')
+    expect(screen.getByTestId('project-settings-btn')).toBeInTheDocument()
+  })
+
+  it('shows empty state when project has no lists', () => {
+    renderAt('/w/abc/p/xyz')
+    expect(screen.getByTestId('project-view-empty')).toBeInTheDocument()
+  })
 })
 
+// ---------------------------------------------------------------------------
+// Tests — AppLayout is always present
+// ---------------------------------------------------------------------------
+
 describe('routes — AppLayout is always present', () => {
-  beforeEach(resetStore)
+  beforeEach(() => {
+    resetStore()
+    useWorkspaces.mockReturnValue({ data: [], isLoading: false })
+    useProjects.mockReturnValue({ data: [], isLoading: false })
+  })
 
   it('sidebar container renders at /', () => {
     renderAt('/')

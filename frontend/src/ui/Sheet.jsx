@@ -12,7 +12,7 @@
  * 'fullscreen' = full-screen sheet (mobile)
  */
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 export function Sheet({
   variant = 'drawer',
@@ -21,6 +21,15 @@ export function Sheet({
   title,
   children,
 }) {
+  const closeButtonRef = useRef(null)
+
+  // Move focus to the close button when the sheet opens
+  useEffect(() => {
+    if (open && closeButtonRef.current) {
+      closeButtonRef.current.focus()
+    }
+  }, [open])
+
   useEffect(() => {
     if (!open) return
 
@@ -59,6 +68,7 @@ export function Sheet({
         aria-modal="true"
         aria-label={title}
         className={panelClasses}
+        data-testid="sheet-panel"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
@@ -66,6 +76,7 @@ export function Sheet({
             <h2 className="text-lg font-semibold text-text">{title}</h2>
           )}
           <button
+            ref={closeButtonRef}
             type="button"
             aria-label="Close"
             onClick={onClose}

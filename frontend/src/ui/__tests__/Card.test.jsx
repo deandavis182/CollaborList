@@ -37,11 +37,13 @@ describe('Card', () => {
     expect(container.firstChild.className).toContain('border-l-2')
   })
 
-  test('left border color is set via inline style using primary color', () => {
+  test('left border color is set via inline style without color-mix (cross-browser)', () => {
     const { container } = render(<Card>Content</Card>)
     const style = container.firstChild.getAttribute('style') || ''
-    // should reference the primary color token
-    expect(style).toContain('--color-primary')
+    // Must reference the primary-40 token (rgba fallback, no color-mix)
+    expect(style).toContain('--color-primary-40')
+    // Confirm color-mix is NOT used (older Safari/Firefox compatibility)
+    expect(style).not.toContain('color-mix')
   })
 
   test('merges additional className', () => {

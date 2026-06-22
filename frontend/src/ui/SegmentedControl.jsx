@@ -7,11 +7,12 @@
  *   onChange : function — called with the selected value on click
  */
 
-export function SegmentedControl({ options = [], value, onChange }) {
+export function SegmentedControl({ options = [], value, onChange, ...rest }) {
   return (
     <div
       role="group"
       className="inline-flex items-center rounded-md border border-border bg-surface-2 p-0.5 gap-0.5"
+      {...rest}
     >
       {options.map((option) => {
         const isActive = option.value === value

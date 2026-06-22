@@ -112,6 +112,25 @@ describe('Sheet', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  test('moves focus to the close button when opened', () => {
+    render(
+      <Sheet open={true} onClose={() => {}} title="Details">
+        Content
+      </Sheet>
+    )
+    const closeBtn = screen.getByRole('button', { name: 'Close' })
+    expect(document.activeElement).toBe(closeBtn)
+  })
+
+  test('sheet panel has data-testid="sheet-panel" when open', () => {
+    render(
+      <Sheet open={true} onClose={() => {}} title="Details">
+        Content
+      </Sheet>
+    )
+    expect(screen.getByTestId('sheet-panel')).toBeInTheDocument()
+  })
+
   test('removes Escape listener when sheet closes (no leak)', () => {
     const onClose = vi.fn()
     const { rerender } = render(

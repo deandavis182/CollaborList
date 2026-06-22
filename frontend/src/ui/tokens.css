@@ -23,6 +23,7 @@
 :root {
   /* ─── Colour — Light ──────────────────────────────────────── */
   --color-primary:      #7C6FF7;   /* brand purple */
+  --color-primary-40:   rgba(124,111,247,0.4); /* primary at 40% — cross-browser left-accent */
   --color-accent:       #C4788A;   /* mauve/rose */
 
   --color-bg:           #F7F5F2;   /* warm off-white page background */
@@ -69,6 +70,7 @@
 /* ─── Colour — Dark overrides ───────────────────────────────── */
 [data-theme="dark"] {
   --color-primary:      #9D96FF;   /* lighter purple on dark bg */
+  --color-primary-40:   rgba(157,150,255,0.4); /* primary at 40% for dark theme */
   --color-accent:       #E09AAC;   /* lighter mauve/rose */
 
   --color-bg:           #141210;   /* near-black warm background */

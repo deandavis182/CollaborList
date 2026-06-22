@@ -23,7 +23,7 @@ export function Card({ children, className = '', as: Tag = 'div', ...rest }) {
   return (
     <Tag
       className={classes}
-      style={{ borderLeftColor: 'color-mix(in srgb, var(--color-primary) 40%, transparent)' }}
+      style={{ borderLeftColor: 'var(--color-primary-40)' }}
       {...rest}
     >
       {children}

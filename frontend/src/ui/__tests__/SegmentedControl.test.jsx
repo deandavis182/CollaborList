@@ -64,4 +64,30 @@ describe('SegmentedControl', () => {
     render(<SegmentedControl options={[]} value="" onChange={() => {}} />)
     expect(screen.queryAllByRole('button')).toHaveLength(0)
   })
+
+  test('forwards aria-label via ...rest onto the root group element', () => {
+    render(
+      <SegmentedControl
+        options={OPTIONS}
+        value="list"
+        onChange={() => {}}
+        aria-label="View switcher"
+      />
+    )
+    const group = screen.getByRole('group', { name: 'View switcher' })
+    expect(group).toBeInTheDocument()
+    expect(group).toHaveAttribute('aria-label', 'View switcher')
+  })
+
+  test('forwards arbitrary data-* attributes via ...rest', () => {
+    render(
+      <SegmentedControl
+        options={OPTIONS}
+        value="list"
+        onChange={() => {}}
+        data-testid="my-control"
+      />
+    )
+    expect(screen.getByTestId('my-control')).toBeInTheDocument()
+  })
 })
