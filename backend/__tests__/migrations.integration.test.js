@@ -48,4 +48,28 @@ describe('V2 migrations (real DB)', () => {
     const t = await pool.query("SELECT to_regclass('public.migrations') AS reg");
     expect(t.rows[0].reg).toBe('migrations');
   });
+
+  test('V2 tables and columns exist after migration', async () => {
+    await runMigrations(pool);
+
+    const tables = ['workspaces', 'workspace_members', 'projects', 'tags',
+      'item_tags', 'field_defs', 'item_fields', 'comments', 'activity',
+      'push_subscriptions', 'notification_prefs'];
+    for (const t of tables) {
+      const r = await pool.query("SELECT to_regclass($1) AS reg", [`public.${t}`]);
+      expect(r.rows[0].reg).toBe(t);
+    }
+
+    const cols = await pool.query(`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'list_items'
+    `);
+    const names = cols.rows.map(r => r.column_name);
+    expect(names).toEqual(expect.arrayContaining(['assignee_id', 'due_date', 'status', 'reminder_sent']));
+
+    const lcols = await pool.query(`
+      SELECT column_name FROM information_schema.columns WHERE table_name = 'lists'
+    `);
+    expect(lcols.rows.map(r => r.column_name)).toContain('project_id');
+  });
 });
