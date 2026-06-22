@@ -1,0 +1,87 @@
+/*
+ * CollaborList V2 — Design Tokens
+ *
+ * Palette intent:
+ *   primary   : brand purple  — actions, links, focus rings
+ *   accent    : mauve/rose    — highlights, badges, secondary CTAs
+ *   bg        : surface 0     — page/app background
+ *   surface   : surface 1     — cards, panels, dialogs
+ *   surface-2 : surface 2     — hover states, subtle backgrounds
+ *   text      : foreground    — primary readable text
+ *   text-muted: subdued text  — labels, captions, placeholders
+ *   success / warning / danger: semantic status colours
+ *   border    : warm dividers — subtle separators
+ *
+ * Scale conventions:
+ *   --text-*    : type scale (rem)
+ *   --space-*   : spacing scale (rem, 4-px base)
+ *   --radius-*  : border-radius
+ *   --ease-*    : cubic-bezier easing curves
+ *   --dur-*     : animation durations
+ */
+
+:root {
+  /* ─── Colour — Light ──────────────────────────────────────── */
+  --color-primary:      #7C6FF7;   /* brand purple */
+  --color-accent:       #C4788A;   /* mauve/rose */
+
+  --color-bg:           #F7F5F2;   /* warm off-white page background */
+  --color-surface:      #FFFFFF;   /* card / panel surface */
+  --color-surface-2:    #EFEBE8;   /* hover / subtle surface */
+
+  --color-text:         #22201E;   /* near-black warm foreground */
+  --color-text-muted:   #6B655F;   /* subdued labels / captions */
+
+  --color-success:      #3D8C6A;   /* green — same in both themes */
+  --color-warning:      #C07A2B;   /* amber */
+  --color-danger:       #C0443A;   /* red */
+
+  --color-border:       #E3DDD6;   /* warm subtle divider */
+
+  /* ─── Type Scale ──────────────────────────────────────────── */
+  --text-xs:   0.75rem;   /*  12px */
+  --text-sm:   0.875rem;  /*  14px */
+  --text-base: 1rem;      /*  16px */
+  --text-lg:   1.125rem;  /*  18px */
+  --text-xl:   1.25rem;   /*  20px */
+  --text-2xl:  1.5rem;    /*  24px */
+
+  /* ─── Spacing (4-px base) ─────────────────────────────────── */
+  --space-1: 0.25rem;   /*  4px */
+  --space-2: 0.5rem;    /*  8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1rem;      /* 16px */
+  --space-5: 1.25rem;   /* 20px */
+  --space-6: 1.5rem;    /* 24px */
+  --space-8: 2rem;      /* 32px */
+
+  /* ─── Border Radius ───────────────────────────────────────── */
+  --radius-sm: 0.25rem;  /*  4px */
+  --radius-md: 0.5rem;   /*  8px */
+  --radius-lg: 1rem;     /* 16px */
+
+  /* ─── Motion ──────────────────────────────────────────────── */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast:  150ms;
+  --dur-base:  250ms;
+}
+
+/* ─── Colour — Dark overrides ───────────────────────────────── */
+[data-theme="dark"] {
+  --color-primary:      #9D96FF;   /* lighter purple on dark bg */
+  --color-accent:       #E09AAC;   /* lighter mauve/rose */
+
+  --color-bg:           #141210;   /* near-black warm background */
+  --color-surface:      #1E1B18;   /* dark card surface */
+  --color-surface-2:    #2A2520;   /* dark hover surface */
+
+  --color-text:         #EDE9E5;   /* warm off-white foreground */
+  --color-text-muted:   #A8A099;   /* subdued on dark */
+
+  /* success/warning/danger stay the same — readable on dark too */
+  --color-success:      #4AA87E;   /* slightly lighter green on dark */
+  --color-warning:      #C07A2B;
+  --color-danger:       #C0443A;
+
+  --color-border:       #332E29;   /* dark warm divider */
+}
