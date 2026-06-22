@@ -518,7 +518,14 @@ test('backfill creates Personal workspace, General project, links list, sets sta
   const beforeUsers = await pool.query('SELECT COUNT(*)::int AS n FROM users');
   const beforeItems = await pool.query('SELECT COUNT(*)::int AS n FROM list_items');
 
+  // Ensure the V2 schema exists, then run the backfill SQL DIRECTLY. Migration 012 is
+  // name-gated and will not re-run once recorded in the (persistent) migrations table, so
+  // a freshly-seeded user would be missed if we relied on runMigrations. The backfill SQL
+  // is idempotent, so running it directly is safe and processes the seeded user regardless
+  // of migrations-table state.
   await runMigrations(pool);
+  const backfillSql = migrations.find(m => m.name === '012_backfill_workspaces_projects').sql;
+  await pool.query(backfillSql);
 
   // Personal workspace owned by the seeded user
   const ws = await pool.query(
@@ -558,14 +565,15 @@ test('backfill creates Personal workspace, General project, links list, sets sta
   // ZERO LOSS: no users or items were removed
   const afterUsers = await pool.query('SELECT COUNT(*)::int AS n FROM users');
   const afterItems = await pool.query('SELECT COUNT(*)::int AS n FROM list_items');
-  expect(afterUsers.rows[0].n).toBeGreaterThanOrEqual(beforeUsers.rows[0].n);
+  expect(afterUsers.rows[0].n).toBe(beforeUsers.rows[0].n);
   expect(afterItems.rows[0].n).toBe(beforeItems.rows[0].n);
 });
 
 test('backfill is idempotent — re-running the 012 SQL makes no duplicates', async () => {
   await runMigrations(pool);
   const sql = migrations.find(m => m.name === '012_backfill_workspaces_projects').sql;
-  // Run the raw backfill SQL again directly (runMigrations is name-gated and won't re-run it)
+  // Run the raw backfill SQL TWICE; the WHERE NOT EXISTS guards must prevent duplicates.
+  await pool.query(sql);
   await pool.query(sql);
   const ws = await pool.query(
     "SELECT COUNT(*)::int AS n FROM workspaces WHERE owner_id = $1 AND name = 'Personal'", [userId]
