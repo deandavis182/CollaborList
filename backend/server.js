@@ -347,18 +347,8 @@ app.put('/api/lists/:id', authenticateToken, async (req, res) => {
   name = sanitizeInput(name);
   description = sanitizeInput(description);
 
-  // Validate optional project_id: if provided (and not null), caller must be a member of that project's workspace
-  if (project_id !== undefined && project_id !== null) {
-    const { getWorkspaceIdForProject } = require('./services/projectService');
-    const { getWorkspaceRole } = require('./middleware/permissions');
-    const wsId = await getWorkspaceIdForProject(pool, project_id);
-    if (!wsId || !(await getWorkspaceRole(pool, wsId, req.user.id))) {
-      return res.status(403).json({ error: 'No access to that project' });
-    }
-  }
-
   try {
-    // Check permissions
+    // Check list edit permissions FIRST before any project_id validation
     const permCheck = await pool.query(
       `SELECT l.user_id, ls.permission
        FROM lists l
@@ -376,6 +366,17 @@ app.put('/api/lists/:id', authenticateToken, async (req, res) => {
 
     if (!canEdit) {
       return res.status(403).json({ error: 'No edit permission' });
+    }
+
+    // Validate optional project_id: if provided (and not null), caller must be a member of that project's workspace.
+    // This check runs AFTER confirming the caller has list-edit rights to prevent workspace membership probing.
+    if (project_id !== undefined && project_id !== null) {
+      const { getWorkspaceIdForProject } = require('./services/projectService');
+      const { getWorkspaceRole } = require('./middleware/permissions');
+      const wsId = await getWorkspaceIdForProject(pool, project_id);
+      if (!wsId || !(await getWorkspaceRole(pool, wsId, req.user.id))) {
+        return res.status(403).json({ error: 'No access to that project' });
+      }
     }
 
     // Build update query — project_id in body overrides existing value (null = unassign)

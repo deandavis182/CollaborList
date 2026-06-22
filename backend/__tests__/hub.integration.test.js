@@ -222,7 +222,15 @@ describe('List-project linking (real DB)', () => {
     await pool.query('DELETE FROM lists WHERE id=$1', [newList.id]);
   });
 
-  test('POST /api/lists with project_id in workspace user is NOT member of -> 403', async () => {
+  // NOTE: This is intentionally a service-level test rather than a full HTTP test.
+  // The POST /api/lists (and PUT /api/lists/:id) handlers live in server.js, not in
+  // a mountable router module. Importing server.js in tests pulls in the full app
+  // with its global pool, Socket.io setup, and startup side-effects, making isolated
+  // HTTP testing impractical without first refactoring the lists routes into a separate
+  // router — which is out of scope for this task. The service-level assertions below
+  // verify the exact guard logic (getWorkspaceIdForProject + getWorkspaceRole) used by
+  // the route handler, giving equivalent confidence without that refactor.
+  test('POST /api/lists with project_id in workspace user is NOT member of -> 403 (service-level)', async () => {
     // bId is NOT a member of aId's workspace
     const w3 = await ws.create(pool, aId, 'Private');
     const p3 = await proj.create(pool, w3.id, { name: 'Secret' });
