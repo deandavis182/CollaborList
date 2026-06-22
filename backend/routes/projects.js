@@ -12,10 +12,15 @@ module.exports = (authenticateToken, sanitize) => {
 
   // Resolve the workspace for permission checks on a project id.
   async function attachWorkspace(req, res, next) {
-    const wsId = await proj.getWorkspaceIdForProject(pool, req.params.id);
-    if (!wsId) return res.status(404).json({ error: 'Project not found' });
-    req.workspaceId = wsId;
-    next();
+    try {
+      const wsId = await proj.getWorkspaceIdForProject(pool, req.params.id);
+      if (!wsId) return res.status(404).json({ error: 'Project not found' });
+      req.workspaceId = wsId;
+      next();
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: 'Failed to resolve project' });
+    }
   }
 
   // PUT /api/projects/:id — update project (requires >= member via workspace)
