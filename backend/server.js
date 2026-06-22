@@ -67,7 +67,21 @@ io.on('connection', async (socket) => {
       console.log(`User ${socket.userEmail} joined room list-${row.id}`);
     }
   } catch (error) {
-    console.error('Error joining rooms:', error);
+    console.error('Error joining list rooms:', error);
+  }
+
+  // Join rooms for all workspaces the user is a member of
+  try {
+    const wsRooms = await pool.query(
+      'SELECT workspace_id FROM workspace_members WHERE user_id = $1',
+      [socket.userId]
+    );
+    for (const row of wsRooms.rows) {
+      socket.join(`workspace-${row.workspace_id}`);
+      console.log(`User ${socket.userEmail} joined room workspace-${row.workspace_id}`);
+    }
+  } catch (error) {
+    console.error('Error joining workspace rooms:', error);
   }
 
   // Handle joining a specific list room
@@ -90,6 +104,10 @@ io.on('connection', async (socket) => {
 // Helper function to emit updates
 const emitListUpdate = (listId, event, data) => {
   io.to(`list-${listId}`).emit(event, data);
+};
+
+const emitWorkspaceUpdate = (workspaceId, event, data) => {
+  io.to(`workspace-${workspaceId}`).emit(event, data);
 };
 
 // Auth middleware
