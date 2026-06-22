@@ -89,13 +89,23 @@ Spec §2, §6, §10. Delivered in three plan files (all complete):
     at **`/v2.html`** (separate Vite entry) alongside the live app. **Do the parity flip AFTER Phase 4**,
     once list/item management is ported into the new shell.
 
-### ⬜ Phase 3 — Collaboration Core
-Spec §3. **Plan:** TBW. Assignments (assignee chip, filter); **My Tasks** smart-view; due dates;
-comments + @mentions (autocomplete from members, mention notifications); activity feed (per-project +
+### ⬜ Phase 3 — Collaboration Core — PLANNED (two plan files; split backend/frontend like Phase 2)
+Spec §3/§6. Assignments (assignee chip, filter); **My Tasks** smart-view; due dates;
+comments + @mentions (autocomplete from members, mention → activity); activity feed (per-project +
 global, unread watermark); presence (in-memory map, header avatars, typing dots);
-**write-time `status`↔`completed` sync** (close the Phase 1 carry-forward). New socket events:
-`comment-created/deleted`, `presence-update`, `typing`, `activity-created`. Permission rules:
-comments/assignments require ≥ member; view-only read-only.
+**write-time `status`↔`completed` sync** (closes Phase 1 carry-forward #3 via migration 013: status
+DEFAULT 'To do' + watermark column). New socket events: `comment-created/deleted`, `presence-update`,
+`typing`, `activity-created` (catalogued in new `backend/realtime/events.js` + FE `lib/events.js`).
+Permission: read comments/activity = list view; post/assign/status = list edit; activity = ws member.
+**Notifications in Phase 3 = activity rows + unread dot only; Web Push delivery is Phase 6.**
+- **3A — Collaboration backend** — ⬜ TODO. **Plan:** `2026-06-22-collaborlist-v2-phase3a-collab-backend.md`
+  (10 tasks; migration 013, `itemAccess`/`commentService`/`activityService`/`taskService`,
+  `routes/comments|activity|tasks`, item collab fields + sync, in-memory presence; additive only;
+  `cross-list-move.test.js` must stay green). Branch `v2-phase3-collab-backend`.
+- **3B — Collaboration frontend** — ⬜ TODO (after 3A merged). **Plan:** `2026-06-22-collaborlist-v2-phase3b-collab-frontend.md`
+  (10 tasks; item list + detail drawer, assignee/due/status controls, comments + @mention autocomplete,
+  My Tasks landing, activity feed + unread dot, presence/typing; new shell can edit items but does NOT
+  replace the live app). Branch `v2-phase3-collab-frontend`. **Parity flip stays deferred to post-Phase-4.**
 
 ### ⬜ Phase 4 — Views
 Spec §2 (views table). **Plan:** TBW (consider splitting per view). Segmented-control lens switch;
