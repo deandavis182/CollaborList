@@ -65,3 +65,20 @@ docker exec listapp-db pg_dump -U listuser listapp > backup.sql
 - **SSL not working?** Make sure port 80 & 443 are open in firewall
 - **Domain not resolving?** Check DNS A record points to server IP
 - **Can't connect?** Check `docker-compose -f docker-compose.traefik.yml logs traefik`
+
+## V2 Migration Safety
+
+The V2 schema migrations (003–012) are additive and backfilling — they never
+drop or rewrite data, and each runs in a transaction that rolls back on failure.
+As a belt-and-suspenders rollback, snapshot the database immediately before
+deploying a release that introduces new migrations:
+
+```bash
+docker exec listapp-db pg_dump -U listuser listapp > backup-$(date +%Y%m%d-%H%M%S).sql
+```
+
+To restore if needed:
+
+```bash
+cat backup-YYYYMMDD-HHMMSS.sql | docker exec -i listapp-db psql -U listuser listapp
+```
