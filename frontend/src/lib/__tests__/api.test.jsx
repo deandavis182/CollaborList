@@ -38,11 +38,19 @@ import {
   apiClient,
   useWorkspaces,
   useCreateWorkspace,
+  useRenameWorkspace,
+  useDeleteWorkspace,
   useProjects,
   useCreateProject,
   useUpdateProject,
   useDeleteProject,
   useProjectLists,
+  useTags,
+  useCreateTag,
+  useDeleteTag,
+  useWorkspaceMembers,
+  useAddMember,
+  useRemoveMember,
 } from '../api.js'
 
 // ---------------------------------------------------------------------------
@@ -531,5 +539,464 @@ describe('useProjectLists', () => {
 
     await waitFor(() => expect(result.current.isError).toBe(true))
     expect(result.current.error.message).toBe('Not found')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// useRenameWorkspace
+// ---------------------------------------------------------------------------
+
+describe('useRenameWorkspace', () => {
+  let queryClient
+
+  beforeEach(() => {
+    queryClient = makeQueryClient()
+    vi.resetAllMocks()
+  })
+
+  it('calls PUT /workspaces/:id with the new name', async () => {
+    const updated = { id: 1, name: 'Renamed WS' }
+    apiClient.put.mockResolvedValueOnce({ data: updated })
+    apiClient.get.mockResolvedValueOnce({ data: [updated] }) // invalidation refetch
+
+    const { result } = renderHook(() => useRenameWorkspace(), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate({ id: 1, name: 'Renamed WS' })
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(apiClient.put).toHaveBeenCalledWith('/workspaces/1', { name: 'Renamed WS' })
+  })
+
+  it('invalidates ["workspaces"] on success', async () => {
+    apiClient.put.mockResolvedValueOnce({ data: { id: 1, name: 'Renamed WS' } })
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    apiClient.get.mockResolvedValueOnce({ data: [] })
+
+    const { result } = renderHook(() => useRenameWorkspace(), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate({ id: 1, name: 'Renamed WS' })
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['workspaces'] })
+  })
+
+  it('surfaces errors from a failed rename', async () => {
+    apiClient.put.mockRejectedValueOnce(new Error('Forbidden'))
+
+    const { result } = renderHook(() => useRenameWorkspace(), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate({ id: 1, name: 'Bad Name' })
+    })
+
+    await waitFor(() => expect(result.current.isError).toBe(true))
+    expect(result.current.error.message).toBe('Forbidden')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// useDeleteWorkspace
+// ---------------------------------------------------------------------------
+
+describe('useDeleteWorkspace', () => {
+  let queryClient
+
+  beforeEach(() => {
+    queryClient = makeQueryClient()
+    vi.resetAllMocks()
+  })
+
+  it('calls DELETE /workspaces/:id', async () => {
+    apiClient.delete.mockResolvedValueOnce({ data: { success: true } })
+    apiClient.get.mockResolvedValueOnce({ data: [] }) // invalidation refetch
+
+    const { result } = renderHook(() => useDeleteWorkspace(), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate(1)
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(apiClient.delete).toHaveBeenCalledWith('/workspaces/1')
+  })
+
+  it('invalidates ["workspaces"] on success', async () => {
+    apiClient.delete.mockResolvedValueOnce({ data: { success: true } })
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    apiClient.get.mockResolvedValueOnce({ data: [] })
+
+    const { result } = renderHook(() => useDeleteWorkspace(), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate(1)
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['workspaces'] })
+  })
+
+  it('surfaces errors from a failed delete', async () => {
+    apiClient.delete.mockRejectedValueOnce(new Error('Not found'))
+
+    const { result } = renderHook(() => useDeleteWorkspace(), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate(99)
+    })
+
+    await waitFor(() => expect(result.current.isError).toBe(true))
+    expect(result.current.error.message).toBe('Not found')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// useTags
+// ---------------------------------------------------------------------------
+
+describe('useTags', () => {
+  let queryClient
+
+  beforeEach(() => {
+    queryClient = makeQueryClient()
+    vi.resetAllMocks()
+  })
+
+  it('returns data from GET /workspaces/:id/tags', async () => {
+    const tags = [{ id: 1, name: 'Urgent', color: '#FF0000' }]
+    apiClient.get.mockResolvedValueOnce({ data: tags })
+
+    const { result } = renderHook(() => useTags(3), { wrapper: wrapper(queryClient) })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(result.current.data).toEqual(tags)
+    expect(apiClient.get).toHaveBeenCalledWith('/workspaces/3/tags')
+  })
+
+  it('uses query key ["tags", workspaceId]', async () => {
+    apiClient.get.mockResolvedValueOnce({ data: [] })
+
+    const { result } = renderHook(() => useTags(3), { wrapper: wrapper(queryClient) })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    const cached = queryClient.getQueryData(['tags', 3])
+    expect(cached).toEqual([])
+  })
+
+  it('is disabled when workspaceId is null', () => {
+    const { result } = renderHook(() => useTags(null), { wrapper: wrapper(queryClient) })
+
+    expect(result.current.fetchStatus).toBe('idle')
+    expect(apiClient.get).not.toHaveBeenCalled()
+  })
+
+  it('is disabled when workspaceId is undefined', () => {
+    const { result } = renderHook(() => useTags(undefined), { wrapper: wrapper(queryClient) })
+
+    expect(result.current.fetchStatus).toBe('idle')
+    expect(apiClient.get).not.toHaveBeenCalled()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// useCreateTag
+// ---------------------------------------------------------------------------
+
+describe('useCreateTag', () => {
+  let queryClient
+
+  beforeEach(() => {
+    queryClient = makeQueryClient()
+    vi.resetAllMocks()
+  })
+
+  it('posts to /workspaces/:id/tags with name', async () => {
+    const created = { id: 5, name: 'New Tag', color: null }
+    apiClient.post.mockResolvedValueOnce({ data: created })
+    apiClient.get.mockResolvedValueOnce({ data: [] })
+
+    const { result } = renderHook(() => useCreateTag(3), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate({ name: 'New Tag' })
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(apiClient.post).toHaveBeenCalledWith('/workspaces/3/tags', { name: 'New Tag' })
+  })
+
+  it('includes optional color when provided', async () => {
+    apiClient.post.mockResolvedValueOnce({ data: { id: 6, name: 'Colored', color: '#ABCDEF' } })
+    apiClient.get.mockResolvedValueOnce({ data: [] })
+
+    const { result } = renderHook(() => useCreateTag(3), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate({ name: 'Colored', color: '#ABCDEF' })
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(apiClient.post).toHaveBeenCalledWith('/workspaces/3/tags', {
+      name: 'Colored',
+      color: '#ABCDEF',
+    })
+  })
+
+  it('invalidates ["tags", workspaceId] on success', async () => {
+    apiClient.post.mockResolvedValueOnce({ data: { id: 5, name: 'Tag' } })
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    apiClient.get.mockResolvedValueOnce({ data: [] })
+
+    const { result } = renderHook(() => useCreateTag(3), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate({ name: 'Tag' })
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['tags', 3] })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// useDeleteTag
+// ---------------------------------------------------------------------------
+
+describe('useDeleteTag', () => {
+  let queryClient
+
+  beforeEach(() => {
+    queryClient = makeQueryClient()
+    vi.resetAllMocks()
+  })
+
+  it('calls DELETE /workspaces/:id/tags/:tagId', async () => {
+    apiClient.delete.mockResolvedValueOnce({ data: { success: true } })
+    apiClient.get.mockResolvedValueOnce({ data: [] })
+
+    const { result } = renderHook(() => useDeleteTag(3), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate(7)
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(apiClient.delete).toHaveBeenCalledWith('/workspaces/3/tags/7')
+  })
+
+  it('invalidates ["tags", workspaceId] on success', async () => {
+    apiClient.delete.mockResolvedValueOnce({ data: { success: true } })
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    apiClient.get.mockResolvedValueOnce({ data: [] })
+
+    const { result } = renderHook(() => useDeleteTag(3), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate(7)
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['tags', 3] })
+  })
+
+  it('surfaces errors from a failed tag delete', async () => {
+    apiClient.delete.mockRejectedValueOnce(new Error('Not found'))
+
+    const { result } = renderHook(() => useDeleteTag(3), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate(99)
+    })
+
+    await waitFor(() => expect(result.current.isError).toBe(true))
+    expect(result.current.error.message).toBe('Not found')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// useWorkspaceMembers
+// ---------------------------------------------------------------------------
+
+describe('useWorkspaceMembers', () => {
+  let queryClient
+
+  beforeEach(() => {
+    queryClient = makeQueryClient()
+    vi.resetAllMocks()
+  })
+
+  it('returns data from GET /workspaces/:id/members', async () => {
+    const members = [
+      { user_id: 10, email: 'alice@example.com', role: 'owner' },
+      { user_id: 20, email: 'bob@example.com', role: 'member' },
+    ]
+    apiClient.get.mockResolvedValueOnce({ data: members })
+
+    const { result } = renderHook(() => useWorkspaceMembers(3), { wrapper: wrapper(queryClient) })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(result.current.data).toEqual(members)
+    expect(apiClient.get).toHaveBeenCalledWith('/workspaces/3/members')
+  })
+
+  it('uses query key ["members", workspaceId]', async () => {
+    apiClient.get.mockResolvedValueOnce({ data: [] })
+
+    const { result } = renderHook(() => useWorkspaceMembers(3), { wrapper: wrapper(queryClient) })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    const cached = queryClient.getQueryData(['members', 3])
+    expect(cached).toEqual([])
+  })
+
+  it('is disabled when workspaceId is null', () => {
+    const { result } = renderHook(() => useWorkspaceMembers(null), { wrapper: wrapper(queryClient) })
+
+    expect(result.current.fetchStatus).toBe('idle')
+    expect(apiClient.get).not.toHaveBeenCalled()
+  })
+
+  it('is disabled when workspaceId is undefined', () => {
+    const { result } = renderHook(() => useWorkspaceMembers(undefined), { wrapper: wrapper(queryClient) })
+
+    expect(result.current.fetchStatus).toBe('idle')
+    expect(apiClient.get).not.toHaveBeenCalled()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// useAddMember
+// ---------------------------------------------------------------------------
+
+describe('useAddMember', () => {
+  let queryClient
+
+  beforeEach(() => {
+    queryClient = makeQueryClient()
+    vi.resetAllMocks()
+  })
+
+  it('posts to /workspaces/:id/members with email and role', async () => {
+    const newMember = { user_id: 30, email: 'carol@example.com', role: 'member' }
+    apiClient.post.mockResolvedValueOnce({ data: newMember })
+    apiClient.get.mockResolvedValueOnce({ data: [] })
+
+    const { result } = renderHook(() => useAddMember(3), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate({ email: 'carol@example.com', role: 'member' })
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(apiClient.post).toHaveBeenCalledWith('/workspaces/3/members', {
+      email: 'carol@example.com',
+      role: 'member',
+    })
+  })
+
+  it('invalidates ["members", workspaceId] on success', async () => {
+    apiClient.post.mockResolvedValueOnce({ data: { user_id: 30, email: 'carol@example.com', role: 'member' } })
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    apiClient.get.mockResolvedValueOnce({ data: [] })
+
+    const { result } = renderHook(() => useAddMember(3), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate({ email: 'carol@example.com', role: 'member' })
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['members', 3] })
+  })
+
+  it('surfaces a 404 error when the user does not exist', async () => {
+    const notFoundError = new Error('User not found')
+    notFoundError.response = { status: 404, data: { error: 'User not found' } }
+    apiClient.post.mockRejectedValueOnce(notFoundError)
+
+    const { result } = renderHook(() => useAddMember(3), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate({ email: 'nobody@example.com', role: 'member' })
+    })
+
+    await waitFor(() => expect(result.current.isError).toBe(true))
+    expect(result.current.error.message).toBe('User not found')
+    expect(result.current.error.response.status).toBe(404)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// useRemoveMember
+// ---------------------------------------------------------------------------
+
+describe('useRemoveMember', () => {
+  let queryClient
+
+  beforeEach(() => {
+    queryClient = makeQueryClient()
+    vi.resetAllMocks()
+  })
+
+  it('calls DELETE /workspaces/:id/members/:userId', async () => {
+    apiClient.delete.mockResolvedValueOnce({ data: { success: true } })
+    apiClient.get.mockResolvedValueOnce({ data: [] })
+
+    const { result } = renderHook(() => useRemoveMember(3), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate(20)
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(apiClient.delete).toHaveBeenCalledWith('/workspaces/3/members/20')
+  })
+
+  it('invalidates ["members", workspaceId] on success', async () => {
+    apiClient.delete.mockResolvedValueOnce({ data: { success: true } })
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    apiClient.get.mockResolvedValueOnce({ data: [] })
+
+    const { result } = renderHook(() => useRemoveMember(3), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate(20)
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['members', 3] })
+  })
+
+  it('surfaces errors from a failed member removal', async () => {
+    apiClient.delete.mockRejectedValueOnce(new Error('Forbidden'))
+
+    const { result } = renderHook(() => useRemoveMember(3), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate(20)
+    })
+
+    await waitFor(() => expect(result.current.isError).toBe(true))
+    expect(result.current.error.message).toBe('Forbidden')
   })
 })

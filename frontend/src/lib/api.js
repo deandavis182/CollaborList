@@ -165,6 +165,172 @@ export function useProjectLists(projectId) {
   })
 }
 
+// ---------------------------------------------------------------------------
+// Workspace management hooks
+// ---------------------------------------------------------------------------
+
+/**
+ * Rename an existing workspace.
+ * mutationFn receives { id, name }.
+ * onSuccess invalidates ['workspaces'].
+ */
+export function useRenameWorkspace() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, name }) => {
+      const { data } = await apiClient.put(`/workspaces/${id}`, { name })
+      return data
+    },
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workspaces'] })
+    },
+  })
+}
+
+/**
+ * Delete a workspace by id.
+ * mutationFn receives the workspace id.
+ * onSuccess invalidates ['workspaces'].
+ */
+export function useDeleteWorkspace() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id) => {
+      const { data } = await apiClient.delete(`/workspaces/${id}`)
+      return data
+    },
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workspaces'] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Tag hooks
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch all tags in a workspace.
+ * Only enabled when workspaceId is truthy.
+ */
+export function useTags(workspaceId) {
+  return useQuery({
+    queryKey: ['tags', workspaceId],
+    queryFn: async () => {
+      const { data } = await apiClient.get(`/workspaces/${workspaceId}/tags`)
+      return data
+    },
+    enabled: Boolean(workspaceId),
+  })
+}
+
+/**
+ * Create a new tag in a workspace.
+ * mutationFn receives { name, color? }.
+ * onSuccess invalidates ['tags', workspaceId].
+ */
+export function useCreateTag(workspaceId) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ name, color }) => {
+      const { data } = await apiClient.post(`/workspaces/${workspaceId}/tags`, {
+        name,
+        ...(color !== undefined && { color }),
+      })
+      return data
+    },
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tags', workspaceId] })
+    },
+  })
+}
+
+/**
+ * Delete a tag by id from a workspace.
+ * mutationFn receives the tagId.
+ * onSuccess invalidates ['tags', workspaceId].
+ */
+export function useDeleteTag(workspaceId) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (tagId) => {
+      const { data } = await apiClient.delete(`/workspaces/${workspaceId}/tags/${tagId}`)
+      return data
+    },
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tags', workspaceId] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Member hooks
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch all members in a workspace.
+ * Only enabled when workspaceId is truthy.
+ */
+export function useWorkspaceMembers(workspaceId) {
+  return useQuery({
+    queryKey: ['members', workspaceId],
+    queryFn: async () => {
+      const { data } = await apiClient.get(`/workspaces/${workspaceId}/members`)
+      return data
+    },
+    enabled: Boolean(workspaceId),
+  })
+}
+
+/**
+ * Add a member to a workspace.
+ * mutationFn receives { email, role }.
+ * Errors propagate so the UI can show the 404 "no such user" message.
+ * onSuccess invalidates ['members', workspaceId].
+ */
+export function useAddMember(workspaceId) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ email, role }) => {
+      const { data } = await apiClient.post(`/workspaces/${workspaceId}/members`, { email, role })
+      return data
+    },
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['members', workspaceId] })
+    },
+  })
+}
+
+/**
+ * Remove a member from a workspace.
+ * mutationFn receives the userId.
+ * onSuccess invalidates ['members', workspaceId].
+ */
+export function useRemoveMember(workspaceId) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (userId) => {
+      const { data } = await apiClient.delete(`/workspaces/${workspaceId}/members/${userId}`)
+      return data
+    },
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['members', workspaceId] })
+    },
+  })
+}
+
 /**
  * Create a new project in a workspace with optimistic update.
  */
