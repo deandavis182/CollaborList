@@ -1058,6 +1058,9 @@ app.delete('/api/items/:id/tags/:tagId', authenticateToken, async (req, res) => 
 app.use('/api/workspaces', require('./routes/workspaces')(authenticateToken, sanitizeInput));
 app.use('/api/projects', require('./routes/projects')(authenticateToken, sanitizeInput));
 
+// Comments routes (V2 — items/:id/comments and comments/:id)
+app.use('/api', require('./routes/comments')(authenticateToken, sanitizeInput, { list: emitListUpdate, workspace: emitWorkspaceUpdate }));
+
 // Security check for production environment
 function checkProductionSecurity() {
   if (process.env.NODE_ENV === 'production') {
