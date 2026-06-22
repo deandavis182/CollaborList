@@ -566,6 +566,37 @@ app.delete('/api/lists/:listId/shares/:userId', authenticateToken, async (req, r
   }
 });
 
+// Item collaboration field constants and helpers
+const VALID_ITEM_STATUSES = ['To do', 'Doing', 'Done', 'Blocked'];
+
+/**
+ * Returns true if assigneeId is a valid assignee for the given list.
+ * For project-linked lists: assignee must be a workspace_members row for the project's workspace.
+ * For standalone lists: assignee must be the list owner or a list_shares entry.
+ * Null assignee is always valid (used for unassign).
+ */
+async function validateAssignee(listId, assigneeId) {
+  const r = await pool.query(
+    `SELECT 1 FROM lists l
+     WHERE l.id = $1
+       AND l.project_id IS NOT NULL
+       AND EXISTS (
+         SELECT 1 FROM workspace_members wm
+         JOIN projects p ON p.workspace_id = wm.workspace_id
+         WHERE p.id = l.project_id AND wm.user_id = $2
+       )
+     UNION ALL
+     SELECT 1 FROM lists l
+     WHERE l.id = $1
+       AND l.project_id IS NULL
+       AND (l.user_id = $2 OR EXISTS (
+         SELECT 1 FROM list_shares ls WHERE ls.list_id = l.id AND ls.user_id = $2
+       ))`,
+    [listId, assigneeId]
+  );
+  return r.rows.length > 0;
+}
+
 // List Items Routes with real-time updates
 app.get('/api/lists/:listId/items', authenticateToken, async (req, res) => {
   const { listId } = req.params;
@@ -596,13 +627,24 @@ app.get('/api/lists/:listId/items', authenticateToken, async (req, res) => {
 
 app.post('/api/lists/:listId/items', authenticateToken, async (req, res) => {
   const { listId } = req.params;
-  let { text, completed = false, notes = '', parent_id = null } = req.body;
+  let { text, completed = false, notes = '', parent_id = null,
+        assignee_id = null, due_date = null, status } = req.body;
 
   // Sanitize input
   text = sanitizeInput(text);
 
   if (!text || text.length < 1) {
     return res.status(400).json({ error: 'Item text is required' });
+  }
+
+  // Status/completed sync at write time
+  if (status !== undefined) {
+    if (!VALID_ITEM_STATUSES.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+    completed = (status === 'Done');
+  } else {
+    status = completed ? 'Done' : 'To do';
   }
 
   try {
@@ -626,6 +668,14 @@ app.post('/api/lists/:listId/items', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'No edit permission' });
     }
 
+    // Validate assignee_id when not null
+    if (assignee_id !== null) {
+      const validAssignee = await validateAssignee(listId, assignee_id);
+      if (!validAssignee) {
+        return res.status(400).json({ error: 'Invalid assignee' });
+      }
+    }
+
     // If parent_id is provided, verify it exists and belongs to the same list
     if (parent_id) {
       const parentCheck = await pool.query(
@@ -645,8 +695,9 @@ app.post('/api/lists/:listId/items', authenticateToken, async (req, res) => {
     const nextPosition = posResult.rows[0].next_position;
 
     const result = await pool.query(
-      'INSERT INTO list_items (list_id, text, completed, position, notes, parent_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [listId, text, completed, nextPosition, notes, parent_id]
+      `INSERT INTO list_items (list_id, text, completed, position, notes, parent_id, assignee_id, due_date, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [listId, text, completed, nextPosition, notes, parent_id, assignee_id, due_date, status]
     );
 
     const newItem = result.rows[0];
@@ -663,7 +714,8 @@ app.post('/api/lists/:listId/items', authenticateToken, async (req, res) => {
 
 app.put('/api/items/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  let { text, completed, position, notes, parent_id, list_id: requestedListId } = req.body;
+  let { text, completed, position, notes, parent_id, list_id: requestedListId,
+        assignee_id, due_date, status } = req.body;
 
   // Sanitize text input if provided
   if (text !== undefined) {
@@ -671,6 +723,11 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
     if (text.length < 1) {
       return res.status(400).json({ error: 'Item text cannot be empty' });
     }
+  }
+
+  // Validate status early (before DB calls)
+  if (status !== undefined && !VALID_ITEM_STATUSES.includes(status)) {
+    return res.status(400).json({ error: 'Invalid status' });
   }
 
   if (requestedListId !== undefined && requestedListId !== null) {
@@ -755,6 +812,14 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
       }
     }
 
+    // Validate assignee_id AFTER permission check (do not leak existence before authz)
+    if (assignee_id !== undefined && assignee_id !== null) {
+      const validAssignee = await validateAssignee(targetListId, assignee_id);
+      if (!validAssignee) {
+        return res.status(400).json({ error: 'Invalid assignee' });
+      }
+    }
+
     if (isCrossListMove) {
       const posResult = await pool.query(
         'SELECT COALESCE(MAX(position), 0) + 1 AS next_position FROM list_items WHERE list_id = $1 AND parent_id IS NOT DISTINCT FROM $2',
@@ -770,6 +835,20 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
     if (text !== undefined) {
       query += `, text = $${paramCount++}`;
       params.push(text);
+    }
+    // Status/completed write-time sync
+    if (status !== undefined) {
+      // status provided: update status and auto-sync completed (unless completed also explicitly provided)
+      query += `, status = $${paramCount++}`;
+      params.push(status);
+      if (completed === undefined) {
+        query += `, completed = $${paramCount++}`;
+        params.push(status === 'Done');
+      }
+    } else if (completed !== undefined) {
+      // Only completed provided: sync status too
+      query += `, status = $${paramCount++}`;
+      params.push(completed ? 'Done' : 'To do');
     }
     if (completed !== undefined) {
       query += `, completed = $${paramCount++}`;
@@ -790,6 +869,14 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
     if (requestedListId !== undefined) {
       query += `, list_id = $${paramCount++}`;
       params.push(targetListId);
+    }
+    if (assignee_id !== undefined) {
+      query += `, assignee_id = $${paramCount++}`;
+      params.push(assignee_id);
+    }
+    if (due_date !== undefined) {
+      query += `, due_date = $${paramCount++}`;
+      params.push(due_date);
     }
 
     query += ` WHERE id = $${paramCount} RETURNING *`;
