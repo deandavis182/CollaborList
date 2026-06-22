@@ -1,0 +1,138 @@
+# CollaborList V2 — Master Roadmap (Continuity Bible)
+
+> **Purpose:** Single source of truth for the V2 overhaul so the work can be resumed
+> *exactly as designed* after any context reset. If you are a fresh session: read this
+> file, then the design spec, then the current phase's plan, then check git log + the
+> SDD ledger to see what's actually done. Do not redesign — execute the outline.
+
+- **Design spec (authoritative requirements):** `docs/superpowers/specs/2026-06-22-collaborlist-v2-design.md`
+- **Approach:** A (evolve the existing React/Vite + Express + Postgres + Socket.io + Docker/Traefik stack in place; no rewrite) + a real design system (from Approach C).
+- **Driving use case:** wedding planning with the user's wife (wedding ~4 months from 2026-06-22, i.e. ~Oct 2026); broader goal is a central, deeply collaborative project hub (work + household + wedding).
+- **Hard constraint:** ZERO live-data loss on every deploy (additive, idempotent, transactioned migrations).
+
+## How to resume after a context reset
+1. Read this roadmap + the design spec.
+2. `git log --oneline -20` on `main` to see merged phases.
+3. Read the SDD progress ledger if mid-phase: `.superpowers/sdd/progress.md` (git-ignored scratch).
+4. Find the first phase below not marked ✅ DONE. If its plan file exists, execute it via
+   `superpowers:subagent-driven-development`. If not, write it via `superpowers:writing-plans`
+   following the phase outline here, then execute.
+5. Apply the Working Conventions (below) without exception.
+
+## Working Conventions (apply to every phase)
+- **Branch per phase** off `main` (e.g. `v2-phase2-hub-backend`); merge to `main` when the
+  phase's final whole-branch review passes; delete the branch after merge.
+- **TDD**, bite-sized tasks, frequent commits. Subagent-driven execution: implementer + task
+  review (spec + quality) per task, broad whole-branch review at the end.
+- **Commit messages: NO `Co-Authored-By` trailer** (user rule). Plain subject + body only.
+- **Backend test image has no volume mount** (`Dockerfile.test` does `COPY . .`). You MUST
+  `docker compose --profile test build backend-test` before each test run to pick up code changes.
+  - Unit suite: `docker compose --profile test run --rm backend-test` (mocks pg; must stay green).
+  - Integration suite (real DB): `docker compose --profile test run --rm backend-test npm run test:integration`.
+  - Migrations are name-gated + the test DB volume persists: tests that need a backfill to run
+    against freshly-seeded data must execute the migration SQL directly (see Phase 1 Task 5), not
+    rely on `runMigrations`. Verify migration/backfill tests pass on TWO consecutive runs.
+- **Migrations** live in `backend/db/migrations.js` as `{name, sql}` entries; continue the
+  `NNN_snake_case` numbering (next is `013`). Additive only — never DROP/rewrite. Names are immutable once shipped.
+- **Keep the old app working:** `frontend/src/RealtimeApp.jsx` stays the live entry until the new
+  shell reaches feature parity; flip `frontend/src/main.jsx` only when parity is verified.
+- **Pre-deploy:** `pg_dump` snapshot (documented in `DEPLOYMENT.md` → "V2 Migration Safety").
+
+## Architecture target (where every phase is heading)
+- **Backend** (`backend/`): thin `server.js`; `db/` (pool, migrations); `routes/` (one per resource);
+  `services/` (SQL + business logic, unit-testable); `realtime/` (io, presence, events catalog);
+  `jobs/` (reminders); `middleware/` (auth, permissions). `security.js` kept.
+- **Frontend** (`frontend/src/`): `app/` (shell, routes), `features/` (auth, workspaces, projects,
+  lists, items, comments, collab, fields, notifications), `views/` (List/Board/Calendar/Timeline),
+  `lib/` (api = axios+React Query, socket = events→cache patches, store = Zustand for ephemeral/UI),
+  `ui/` (design tokens + primitives).
+- **Data model:** Workspaces → Projects → Lists → Items, plus tags, typed custom fields, comments,
+  activity, push subscriptions. (All tables already exist as of Phase 1.)
+
+---
+
+## Phase status & outline
+
+> Each phase yields working, tested software on its own. Some phases are split into multiple
+> plan files (the executable units). "Plan" column: file under `docs/superpowers/plans/`.
+
+### ✅ Phase 1 — Data Foundation — DONE (merged to main, 2026-06-22)
+- **Plan:** `2026-06-22-collaborlist-v2-phase1-foundation.md`
+- **Delivered:** additive V2 schema migrations `003–012` (workspaces, workspace_members, projects,
+  tags, item_tags, field_defs, item_fields, comments, activity, push_subscriptions,
+  notification_prefs; `lists.project_id`; `list_items.assignee_id/due_date/status/reminder_sent`);
+  zero-loss backfill (`012`); extraction of `db/pool.js` + `db/migrations.js`; real-DB integration
+  test suite. Tests: 10/10 unit + 4/4 integration. Final review: ready-to-merge, no Critical/Important.
+- **Note:** the spec's §11 Phase 1 also listed "FE shell + routing + design tokens" — that part was
+  intentionally deferred to the Phase 2 frontend plan (2B) to keep the data plan focused.
+
+### ⬜ Phase 2 — Hub Structure
+Spec §2, §6, §10. Split into three plan files:
+- **2A — Hub backend APIs** — **Plan:** `2026-06-22-collaborlist-v2-phase2-hub-backend.md` (WRITTEN, ready to execute)
+  - Workspaces CRUD + membership; Projects CRUD (incl. `wedding_date`, color, archive, position);
+    Tags CRUD + item tagging; registration creates a default Personal workspace + General project +
+    owner membership for NEW users; `lists` gains project assignment + workspace-scoped fetch;
+    socket `workspace-{id}` rooms; begin the `routes/` + `services/` + `middleware/permissions.js`
+    restructure (extract list/item logic as you touch it). Workspace membership is the new sharing
+    path; per-list `list_shares` remains valid and untouched.
+- **2B — Frontend shell + design system** — **Plan:** TBW (`...-phase2-frontend-shell.md`)
+  - React Router; `app/` shell (desktop 3-zone + mobile bottom-tab responsive); `ui/` design tokens
+    + primitives (Button, Card, Chip, Avatar, Sheet/Drawer, Field, SegmentedControl, Toast),
+    light/dark; React Query + socket-cache wiring in `lib/`; auth ported. Built behind parity with
+    `RealtimeApp.jsx`; do NOT flip `main.jsx` until parity verified. (Use `frontend-design` skill for visual direction.)
+- **2C — Hub UI** — **Plan:** TBW (`...-phase2-hub-ui.md`)
+  - Workspace switcher, projects tree in sidebar, lists shown under projects, project roll-up
+    landing, tag UI, membership/invite UI. Consumes 2A APIs + 2B shell. This is the parity-flip point.
+
+### ⬜ Phase 3 — Collaboration Core
+Spec §3. **Plan:** TBW. Assignments (assignee chip, filter); **My Tasks** smart-view; due dates;
+comments + @mentions (autocomplete from members, mention notifications); activity feed (per-project +
+global, unread watermark); presence (in-memory map, header avatars, typing dots);
+**write-time `status`↔`completed` sync** (close the Phase 1 carry-forward). New socket events:
+`comment-created/deleted`, `presence-update`, `typing`, `activity-created`. Permission rules:
+comments/assignments require ≥ member; view-only read-only.
+
+### ⬜ Phase 4 — Views
+Spec §2 (views table). **Plan:** TBW (consider splitting per view). Segmented-control lens switch;
+**List** (enhanced: inline assignee/due/tags, group-by) → **Board** (Kanban by status/assignee,
+reuse @dnd-kit) → **Calendar** (due dates on month grid + live countdown to project `wedding_date`)
+→ **Timeline** (milestones). Per-user per-list view + group-by preference persistence. Project
+roll-up renders in any view.
+
+### ⬜ Phase 5 — Structured Fields
+Spec §5. **Plan:** TBW. `field_defs` per list + `item_fields` values (number/text/date/status/person);
+footer roll-ups (Σ/paid/remaining; headcount); two starter presets ("Budget tracker", "Guest list");
+inline rendering in List/Board/detail. New socket event: `field-updated`. No formulas/relations/per-field perms.
+
+### ⬜ Phase 6 — PWA + Notifications
+Spec §7. **Plan:** TBW. Vite PWA plugin (service worker + manifest + install; offline shell);
+Web Push via `web-push` + VAPID env keys; `push_subscriptions` flow; deep-link from notification to
+item; in-process **reminder engine** (`jobs/reminders.js`, ~15-min interval, `reminder_sent` guard);
+`notification_prefs` (categories + mute-project + quiet hours). iOS: web push requires installed PWA
+(16.4+) — onboarding must make install explicit. No email/digest.
+
+### ⬜ Phase 7 — Cut-line Extras (optional, last)
+**Plan:** TBW. File/photo attachments (needs storage infra) and automations/recurring tasks (rules
+engine). Sequenced last so they're the natural cut if time runs short before the wedding. Kept in
+scope by the user (not deferred), but lowest priority.
+
+---
+
+## Carry-forwards (must be honored in the noted phase)
+From the Phase 1 final review and spec self-review:
+1. **(Phase 2A)** Scope the migration-012 step-4 `lists`→`projects` UPDATE pattern to the *Personal*
+   workspace (`AND w.name='Personal'`) — relevant once multi-workspace ownership exists; for any NEW
+   backfill/linking logic, link by the specific intended workspace, not "any workspace the user owns."
+2. **(Phase 2A)** New-user registration MUST create Personal workspace + General project + owner
+   membership (migration 012 only backfilled pre-existing users).
+3. **(Phase 3)** Decide `list_items.status` NULL handling (DB default or app guarantee) when the
+   write-time `status`↔`completed` sync lands, so new rows are never silently NULL.
+4. **(Phase 2/CI)** Use a separate DB name for the integration suite in CI; note in `DEPLOYMENT.md`
+   that `test:integration` must never target production.
+5. **(Phase 2A docs)** Update design spec §4 step 4 wording: `list_shares` is PRESERVED (not converted
+   to workspace membership) so the spec matches shipped behavior.
+
+## Deferred / explicit non-goals (do not build without a new decision)
+Native mobile app; public sharing / templates marketplace; comment reactions/emoji; custom savable
+filter-views; board WIP limits; formula fields; cross-list relations/lookups; per-field permissions;
+email/digest notifications.
