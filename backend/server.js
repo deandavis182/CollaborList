@@ -1,6 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const { Pool } = require('pg');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const http = require('http');
@@ -25,13 +24,7 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const { createSecurityMiddleware } = require('./security');
 
 // PostgreSQL connection
-const pool = new Pool({
-  host: process.env.DB_HOST || 'postgres',
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME || 'listapp',
-  user: process.env.DB_USER || 'listuser',
-  password: process.env.DB_PASSWORD || 'listpass'
-});
+const pool = require('./db/pool');
 
 // Middleware and Security
 app.use(express.json());
