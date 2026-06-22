@@ -1,6 +1,7 @@
 // backend/__tests__/hub.integration.test.js
 const { Pool } = require('pg');
 const { getWorkspaceRole } = require('../middleware/permissions');
+const ws = require('../services/workspaceService');
 
 const A = 'phase2-a@example.test';
 const B = 'phase2-b@example.test';
@@ -24,5 +25,17 @@ describe('Hub backend (real DB)', () => {
   test('getWorkspaceRole returns role for member, null for non-member', async () => {
     expect(await getWorkspaceRole(pool, wsId, aId)).toBe('owner');
     expect(await getWorkspaceRole(pool, wsId, bId)).toBeNull();
+  });
+
+  test('create + addMember + listForUser', async () => {
+    const w = await ws.create(pool, aId, 'Trip');
+    expect(w.owner_id).toBe(aId);
+    expect(await getWorkspaceRole(pool, w.id, aId)).toBe('owner');
+    const m = await ws.addMemberByEmail(pool, w.id, B, 'member');
+    expect(m.user_id).toBe(bId);
+    const forB = await ws.listForUser(pool, bId);
+    expect(forB.find(x => x.id === w.id).role).toBe('member');
+    await expect(ws.addMemberByEmail(pool, w.id, 'nope@x.test', 'member'))
+      .rejects.toMatchObject({ code: 'NO_USER' });
   });
 });

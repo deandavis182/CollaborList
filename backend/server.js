@@ -847,6 +847,9 @@ app.delete('/api/items/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// Workspace routes (V2 hub)
+app.use('/api/workspaces', require('./routes/workspaces')(authenticateToken, sanitizeInput));
+
 // Security check for production environment
 function checkProductionSecurity() {
   if (process.env.NODE_ENV === 'production') {
