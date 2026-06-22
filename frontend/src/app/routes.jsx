@@ -10,7 +10,7 @@
  * and `AppRoutes` (a plain <Routes> component for testing with <MemoryRouter>).
  */
 
-import { createBrowserRouter, RouterProvider, Routes, Route, useParams, Outlet, Link } from 'react-router-dom'
+import { createHashRouter, RouterProvider, Routes, Route, useParams, Outlet, Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { AppLayout } from './AppLayout.jsx'
 import { ProjectView as ProjectViewFeature } from '../features/projects/ProjectView.jsx'
@@ -308,11 +308,18 @@ export function AppRoutes() {
 // ---------------------------------------------------------------------------
 
 /**
- * createAppRouter — returns a BrowserRouter suitable for the production entry.
- * Separated from the module top-level so tests don't instantiate it.
+ * createAppRouter — returns a HashRouter for the secondary entry.
+ *
+ * A HASH router is used (not a browser router) because the V2 shell is served
+ * as a separate file at /v2.html alongside the live app at /. With a browser
+ * router the initial location (/v2.html) matches no route → 404. With a hash
+ * router the path lives after the '#', so /v2.html loads "/" and refresh /
+ * deep-links work without nginx changes and without colliding with the old
+ * app's path space. When the parity flip happens (V2 becomes the default at
+ * "/"), switch this back to createBrowserRouter.
  */
 export function createAppRouter() {
-  return createBrowserRouter([
+  return createHashRouter([
     {
       path: '/',
       element: <AppLayout />,
