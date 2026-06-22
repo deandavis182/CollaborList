@@ -881,6 +881,78 @@ app.delete('/api/items/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// Item tagging endpoints
+const tagSvc = require('./services/tagService');
+
+app.post('/api/items/:id/tags', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const { tag_id } = req.body;
+
+  if (!tag_id) return res.status(400).json({ error: 'tag_id required' });
+
+  try {
+    // Mirror PUT /api/items/:id permission check: caller must own or have edit access to the item's list
+    const permCheck = await pool.query(
+      `SELECT l.user_id, ls.permission, li.list_id
+       FROM list_items li
+       JOIN lists l ON li.list_id = l.id
+       LEFT JOIN list_shares ls ON l.id = ls.list_id AND ls.user_id = $2
+       WHERE li.id = $1`,
+      [id, req.user.id]
+    );
+
+    if (permCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    const canEdit = permCheck.rows[0].user_id === req.user.id ||
+                    permCheck.rows[0].permission === 'edit';
+
+    if (!canEdit) {
+      return res.status(403).json({ error: 'No edit permission' });
+    }
+
+    await tagSvc.addToItem(pool, id, tag_id);
+    res.status(201).json({ item_id: parseInt(id, 10), tag_id });
+  } catch (error) {
+    console.error('Error adding tag to item:', error);
+    res.status(500).json({ error: 'Failed to add tag to item' });
+  }
+});
+
+app.delete('/api/items/:id/tags/:tagId', authenticateToken, async (req, res) => {
+  const { id, tagId } = req.params;
+
+  try {
+    // Mirror PUT /api/items/:id permission check: caller must own or have edit access to the item's list
+    const permCheck = await pool.query(
+      `SELECT l.user_id, ls.permission, li.list_id
+       FROM list_items li
+       JOIN lists l ON li.list_id = l.id
+       LEFT JOIN list_shares ls ON l.id = ls.list_id AND ls.user_id = $2
+       WHERE li.id = $1`,
+      [id, req.user.id]
+    );
+
+    if (permCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    const canEdit = permCheck.rows[0].user_id === req.user.id ||
+                    permCheck.rows[0].permission === 'edit';
+
+    if (!canEdit) {
+      return res.status(403).json({ error: 'No edit permission' });
+    }
+
+    await tagSvc.removeFromItem(pool, id, tagId);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error removing tag from item:', error);
+    res.status(500).json({ error: 'Failed to remove tag from item' });
+  }
+});
+
 // Workspace routes (V2 hub)
 app.use('/api/workspaces', require('./routes/workspaces')(authenticateToken, sanitizeInput));
 app.use('/api/projects', require('./routes/projects')(authenticateToken, sanitizeInput));

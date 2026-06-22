@@ -3,6 +3,7 @@ const { Pool } = require('pg');
 const { getWorkspaceRole } = require('../middleware/permissions');
 const ws = require('../services/workspaceService');
 const proj = require('../services/projectService');
+const tags = require('../services/tagService');
 const express = require('express');
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
@@ -304,5 +305,32 @@ describe('Workspace routes HTTP permissions (real DB)', () => {
     const r = await request(app).delete(`/api/workspaces/${wsId}/members/${ownerId}`)
       .set('Authorization', `Bearer ${tokenFor(memberId, MEMBER)}`);
     expect(r.status).toBe(403);
+  });
+});
+
+describe('Tag service (real DB)', () => {
+  let pool, aId;
+  const TA = 'phase2-tag-a@example.test';
+
+  beforeAll(async () => {
+    pool = new Pool({
+      host: process.env.DB_HOST || 'postgres', port: process.env.DB_PORT || 5432,
+      database: process.env.DB_NAME || 'listapp', user: process.env.DB_USER || 'listuser',
+      password: process.env.DB_PASSWORD || 'listpass',
+    });
+    await pool.query('DELETE FROM users WHERE email=$1', [TA]);
+    aId = (await pool.query("INSERT INTO users (email,password_hash) VALUES ($1,'x') RETURNING id", [TA])).rows[0].id;
+  });
+  afterAll(async () => { await pool.query('DELETE FROM users WHERE email=$1', [TA]); await pool.end(); });
+
+  test('tag create + attach to item + list + remove', async () => {
+    const w = await ws.create(pool, aId, 'TagWS');
+    const t = await tags.create(pool, w.id, { name: 'urgent', color: '#f00' });
+    const list = (await pool.query('INSERT INTO lists (name,user_id) VALUES ($1,$2) RETURNING id', ['L', aId])).rows[0];
+    const item = (await pool.query('INSERT INTO list_items (list_id,text) VALUES ($1,$2) RETURNING id', [list.id, 'x'])).rows[0];
+    await tags.addToItem(pool, item.id, t.id);
+    expect((await tags.listForItem(pool, item.id)).some(x => x.id === t.id)).toBe(true);
+    await tags.removeFromItem(pool, item.id, t.id);
+    expect(await tags.listForItem(pool, item.id)).toHaveLength(0);
   });
 });

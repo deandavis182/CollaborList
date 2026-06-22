@@ -122,5 +122,49 @@ module.exports = (authenticateToken, sanitize) => {
     }
   });
 
+  const tagSvc = require('../services/tagService');
+
+  // GET /api/workspaces/:workspaceId/tags — list tags (requires >= member)
+  router.get('/:workspaceId/tags', requireWorkspaceRole(pool, 'member'), async (req, res) => {
+    try {
+      res.json(await tagSvc.listForWorkspace(pool, req.params.workspaceId));
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: 'Failed to fetch tags' });
+    }
+  });
+
+  // POST /api/workspaces/:workspaceId/tags — create tag (requires >= member)
+  router.post('/:workspaceId/tags', requireWorkspaceRole(pool, 'member'), async (req, res) => {
+    const name = sanitize(req.body.name);
+    if (!name) return res.status(400).json({ error: 'Tag name required' });
+    try {
+      res.status(201).json(await tagSvc.create(pool, req.params.workspaceId, {
+        name,
+        color: req.body.color || null,
+      }));
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: 'Failed to create tag' });
+    }
+  });
+
+  // DELETE /api/workspaces/:workspaceId/tags/:tagId — delete tag (requires >= member)
+  router.delete('/:workspaceId/tags/:tagId', requireWorkspaceRole(pool, 'member'), async (req, res) => {
+    try {
+      // Verify the tag belongs to this workspace before deleting
+      const wsId = await tagSvc.workspaceIdOfTag(pool, req.params.tagId);
+      if (!wsId) return res.status(404).json({ error: 'Tag not found' });
+      if (String(wsId) !== String(req.params.workspaceId)) {
+        return res.status(403).json({ error: 'Tag does not belong to this workspace' });
+      }
+      await tagSvc.remove(pool, req.params.tagId);
+      res.json({ success: true });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: 'Failed to delete tag' });
+    }
+  });
+
   return router;
 };
