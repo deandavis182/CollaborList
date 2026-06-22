@@ -32,8 +32,10 @@ describe('V2 migrations (real DB)', () => {
       ['Legacy List', userId]
     );
     const listId = l.rows[0].id;
+    // Force status=NULL explicitly so the 012 backfill assertion holds regardless of
+    // whether migration 013 (which adds DEFAULT 'To do') has already been applied.
     await pool.query(
-      'INSERT INTO list_items (list_id, text, completed) VALUES ($1, $2, $3), ($1, $4, $5)',
+      'INSERT INTO list_items (list_id, text, completed, status) VALUES ($1, $2, $3, NULL), ($1, $4, $5, NULL)',
       [listId, 'done item', true, 'open item', false]
     );
   });

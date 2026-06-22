@@ -191,6 +191,14 @@ const migrations = [
       WHERE status IS NULL;
     `
   },
+  {
+    name: '013_collab_defaults_and_watermark',
+    sql: `
+      ALTER TABLE workspace_members ADD COLUMN IF NOT EXISTS last_seen_activity TIMESTAMP;
+      ALTER TABLE list_items ALTER COLUMN status SET DEFAULT 'To do';
+      UPDATE list_items SET status = CASE WHEN completed THEN 'Done' ELSE 'To do' END WHERE status IS NULL;
+    `
+  },
 ];
 
 async function runMigrations(pool = sharedPool) {

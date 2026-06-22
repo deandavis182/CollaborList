@@ -1,0 +1,11 @@
+'use strict';
+module.exports = Object.freeze({
+  COMMENT_CREATED: 'comment-created',
+  COMMENT_DELETED: 'comment-deleted',
+  ACTIVITY_CREATED: 'activity-created',
+  PRESENCE_UPDATE: 'presence-update',
+  TYPING: 'typing',
+  ITEM_CREATED: 'item-created',
+  ITEM_UPDATED: 'item-updated',
+  ITEM_DELETED: 'item-deleted',
+});
