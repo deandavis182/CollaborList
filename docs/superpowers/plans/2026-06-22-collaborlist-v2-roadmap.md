@@ -66,23 +66,28 @@
 - **Note:** the spec's §11 Phase 1 also listed "FE shell + routing + design tokens" — that part was
   intentionally deferred to the Phase 2 frontend plan (2B) to keep the data plan focused.
 
-### ⬜ Phase 2 — Hub Structure
-Spec §2, §6, §10. Split into three plan files:
-- **2A — Hub backend APIs** — **Plan:** `2026-06-22-collaborlist-v2-phase2-hub-backend.md` (WRITTEN, ready to execute)
+### ✅ Phase 2 — Hub Structure — DONE (merged to main, 2026-06-22; origin 50b97f1)
+Spec §2, §6, §10. Delivered in three plan files (all complete):
+- **2A — Hub backend APIs** — ✅ DONE. **Plan:** `2026-06-22-collaborlist-v2-phase2-hub-backend.md`. (8 tasks; 19/19 integration + 10/10 unit; merged to main first as a checkpoint.)
   - Workspaces CRUD + membership; Projects CRUD (incl. `wedding_date`, color, archive, position);
     Tags CRUD + item tagging; registration creates a default Personal workspace + General project +
     owner membership for NEW users; `lists` gains project assignment + workspace-scoped fetch;
     socket `workspace-{id}` rooms; begin the `routes/` + `services/` + `middleware/permissions.js`
     restructure (extract list/item logic as you touch it). Workspace membership is the new sharing
     path; per-list `list_shares` remains valid and untouched.
-- **2B — Frontend shell + design system** — **Plan:** TBW (`...-phase2-frontend-shell.md`)
-  - React Router; `app/` shell (desktop 3-zone + mobile bottom-tab responsive); `ui/` design tokens
-    + primitives (Button, Card, Chip, Avatar, Sheet/Drawer, Field, SegmentedControl, Toast),
-    light/dark; React Query + socket-cache wiring in `lib/`; auth ported. Built behind parity with
-    `RealtimeApp.jsx`; do NOT flip `main.jsx` until parity verified. (Use `frontend-design` skill for visual direction.)
-- **2C — Hub UI** — **Plan:** TBW (`...-phase2-hub-ui.md`)
-  - Workspace switcher, projects tree in sidebar, lists shown under projects, project roll-up
-    landing, tag UI, membership/invite UI. Consumes 2A APIs + 2B shell. This is the parity-flip point.
+- **2B — Frontend shell + design system** — ✅ DONE. **Plan:** `2026-06-22-collaborlist-v2-phase2-frontend-shell.md`.
+  - React Router; `app/` shell (responsive); `ui/` design tokens (warm palette, light/dark) + primitives
+    (Button, Card, Chip, Avatar, Sheet, Field, SegmentedControl, Toast); React Query + Zustand + socket
+    wiring in `lib/`; Vitest+Testing-Library infra. Checkpoint-reviewed. New shell mounts at a SEPARATE
+    entry (`main-v2.jsx`); live `main.jsx`/`RealtimeApp.jsx` untouched.
+- **2C — Hub UI** — ✅ DONE. **Plan:** `2026-06-22-collaborlist-v2-phase2c-hub-ui.md`.
+  - Workspace switcher, projects tree, ProjectView (lists under projects, read-only for now), project
+    settings (color/event-date/archive/delete), tag manager, member/invite manager. Consumes 2A APIs +
+    2B shell. 334 frontend tests; final-reviewed (fixed a wedding_date '' bug + id-coercion bug).
+  - **PARITY FLIP DEFERRED (revised):** the new shell has NO item editing yet (Phase 3 collab + Phase 4
+    views), so flipping `main.jsx` now would ship an app that can't edit items. The new hub is previewable
+    at **`/v2.html`** (separate Vite entry) alongside the live app. **Do the parity flip AFTER Phase 4**,
+    once list/item management is ported into the new shell.
 
 ### ⬜ Phase 3 — Collaboration Core
 Spec §3. **Plan:** TBW. Assignments (assignee chip, filter); **My Tasks** smart-view; due dates;
