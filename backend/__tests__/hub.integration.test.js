@@ -2,6 +2,7 @@
 const { Pool } = require('pg');
 const { getWorkspaceRole } = require('../middleware/permissions');
 const ws = require('../services/workspaceService');
+const proj = require('../services/projectService');
 const express = require('express');
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
@@ -41,6 +42,90 @@ describe('Hub backend (real DB)', () => {
     expect(forB.find(x => x.id === w.id).role).toBe('member');
     await expect(ws.addMemberByEmail(pool, w.id, 'nope@x.test', 'member'))
       .rejects.toMatchObject({ code: 'NO_USER' });
+  });
+});
+
+describe('Project service (real DB)', () => {
+  let pool, aId, bId;
+  const A = 'phase2-proj-a@example.test';
+  const B = 'phase2-proj-b@example.test';
+
+  beforeAll(async () => {
+    pool = new Pool({
+      host: process.env.DB_HOST || 'postgres', port: process.env.DB_PORT || 5432,
+      database: process.env.DB_NAME || 'listapp', user: process.env.DB_USER || 'listuser',
+      password: process.env.DB_PASSWORD || 'listpass',
+    });
+    await pool.query('DELETE FROM users WHERE email = ANY($1)', [[A, B]]);
+    aId = (await pool.query("INSERT INTO users (email, password_hash) VALUES ($1,'x') RETURNING id", [A])).rows[0].id;
+    bId = (await pool.query("INSERT INTO users (email, password_hash) VALUES ($1,'x') RETURNING id", [B])).rows[0].id;
+  });
+  afterAll(async () => { await pool.query('DELETE FROM users WHERE email = ANY($1)', [[A, B]]); await pool.end(); });
+
+  test('project create/list/update', async () => {
+    const w = await ws.create(pool, aId, 'Wedding');
+    const p = await proj.create(pool, w.id, { name: 'Vendors' });
+    expect((await proj.listForWorkspace(pool, w.id)).some(x => x.id === p.id)).toBe(true);
+    const u = await proj.update(pool, p.id, { wedding_date: '2026-10-15' });
+    expect(u.wedding_date.toISOString().slice(0, 10)).toBe('2026-10-15');
+    expect(await proj.getWorkspaceIdForProject(pool, p.id)).toBe(w.id);
+  });
+});
+
+describe('Project routes HTTP permissions (real DB)', () => {
+  let pool, ownerId, nonMemberId, wsId, app;
+  const OWNER = 'phase2-proj-http-owner@example.test';
+  const NON_MEMBER = 'phase2-proj-http-nonmember@example.test';
+  const SECRET = process.env.JWT_SECRET || 'test-secret';
+  const tokenFor = (id, email) => jwt.sign({ id, email }, SECRET);
+
+  beforeAll(async () => {
+    pool = new Pool({
+      host: process.env.DB_HOST || 'postgres', port: process.env.DB_PORT || 5432,
+      database: process.env.DB_NAME || 'listapp', user: process.env.DB_USER || 'listuser',
+      password: process.env.DB_PASSWORD || 'listpass',
+    });
+    await pool.query('DELETE FROM users WHERE email = ANY($1)', [[OWNER, NON_MEMBER]]);
+    ownerId = (await pool.query("INSERT INTO users (email,password_hash) VALUES ($1,'x') RETURNING id", [OWNER])).rows[0].id;
+    nonMemberId = (await pool.query("INSERT INTO users (email,password_hash) VALUES ($1,'x') RETURNING id", [NON_MEMBER])).rows[0].id;
+
+    const authenticateToken = (req, res, next) => {
+      const h = req.headers['authorization']; const t = h && h.split(' ')[1];
+      if (!t) return res.status(401).json({ error: 'Access token required' });
+      jwt.verify(t, SECRET, (err, user) => { if (err) return res.status(403).json({ error: 'Invalid token' }); req.user = user; next(); });
+    };
+    const sanitize = (s) => (s || '').toString();
+    app = express();
+    app.use(express.json());
+    app.use('/api/workspaces', makeWorkspacesRouter(authenticateToken, sanitize));
+    app.use('/api/projects', require('../routes/projects')(authenticateToken, sanitize));
+
+    const created = await request(app).post('/api/workspaces')
+      .set('Authorization', `Bearer ${tokenFor(ownerId, OWNER)}`).send({ name: 'Proj HTTP WS' });
+    wsId = created.body.id;
+  });
+  afterAll(async () => { await pool.query('DELETE FROM users WHERE email = ANY($1)', [[OWNER, NON_MEMBER]]); await pool.end(); });
+
+  test('non-member gets 403 creating project in owner workspace', async () => {
+    const r = await request(app).post(`/api/workspaces/${wsId}/projects`)
+      .set('Authorization', `Bearer ${tokenFor(nonMemberId, NON_MEMBER)}`).send({ name: 'Secret Project' });
+    expect(r.status).toBe(403);
+  });
+
+  test('owner can create project -> 201', async () => {
+    const r = await request(app).post(`/api/workspaces/${wsId}/projects`)
+      .set('Authorization', `Bearer ${tokenFor(ownerId, OWNER)}`).send({ name: 'My Project' });
+    expect(r.status).toBe(201);
+    expect(r.body.name).toBe('My Project');
+  });
+
+  test('non-member gets 403 updating project', async () => {
+    const created = await request(app).post(`/api/workspaces/${wsId}/projects`)
+      .set('Authorization', `Bearer ${tokenFor(ownerId, OWNER)}`).send({ name: 'To Update' });
+    const pId = created.body.id;
+    const r = await request(app).put(`/api/projects/${pId}`)
+      .set('Authorization', `Bearer ${tokenFor(nonMemberId, NON_MEMBER)}`).send({ name: 'Hacked' });
+    expect(r.status).toBe(403);
   });
 });
 

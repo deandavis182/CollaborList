@@ -94,5 +94,33 @@ module.exports = (authenticateToken, sanitize) => {
     }
   });
 
+  const proj = require('../services/projectService');
+
+  // GET /api/workspaces/:workspaceId/projects — list projects (requires >= member)
+  router.get('/:workspaceId/projects', requireWorkspaceRole(pool, 'member'), async (req, res) => {
+    try {
+      res.json(await proj.listForWorkspace(pool, req.params.workspaceId));
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: 'Failed to fetch projects' });
+    }
+  });
+
+  // POST /api/workspaces/:workspaceId/projects — create project (requires >= member)
+  router.post('/:workspaceId/projects', requireWorkspaceRole(pool, 'member'), async (req, res) => {
+    const name = sanitize(req.body.name);
+    if (!name) return res.status(400).json({ error: 'Project name required' });
+    try {
+      res.status(201).json(await proj.create(pool, req.params.workspaceId, {
+        name,
+        color: req.body.color || null,
+        wedding_date: req.body.wedding_date || null,
+      }));
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: 'Failed to create project' });
+    }
+  });
+
   return router;
 };
