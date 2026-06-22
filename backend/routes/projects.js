@@ -46,5 +46,19 @@ module.exports = (authenticateToken, sanitize) => {
     }
   });
 
+  // GET /api/projects/:id/lists — lists in a project (requires >= member of its workspace)
+  router.get('/:id/lists', attachWorkspace, requireWorkspaceRole(pool, 'member'), async (req, res) => {
+    try {
+      const r = await pool.query(
+        'SELECT * FROM lists WHERE project_id=$1 ORDER BY created_at DESC',
+        [req.params.id]
+      );
+      res.json(r.rows);
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: 'Failed to fetch project lists' });
+    }
+  });
+
   return router;
 };

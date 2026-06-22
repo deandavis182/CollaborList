@@ -299,7 +299,7 @@ app.get('/api/lists', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/lists', authenticateToken, async (req, res) => {
-  let { name, description } = req.body;
+  let { name, description, project_id } = req.body;
 
   // Sanitize inputs
   name = sanitizeInput(name);
@@ -309,10 +309,20 @@ app.post('/api/lists', authenticateToken, async (req, res) => {
     return res.status(400).json({ error: 'List name is required' });
   }
 
+  // Validate optional project_id: caller must be a member of the project's workspace
+  if (project_id) {
+    const { getWorkspaceIdForProject } = require('./services/projectService');
+    const { getWorkspaceRole } = require('./middleware/permissions');
+    const wsId = await getWorkspaceIdForProject(pool, project_id);
+    if (!wsId || !(await getWorkspaceRole(pool, wsId, req.user.id))) {
+      return res.status(403).json({ error: 'No access to that project' });
+    }
+  }
+
   try {
     const result = await pool.query(
-      'INSERT INTO lists (name, description, user_id) VALUES ($1, $2, $3) RETURNING *',
-      [name, description, req.user.id]
+      'INSERT INTO lists (name, description, user_id, project_id) VALUES ($1, $2, $3, $4) RETURNING *',
+      [name, description, req.user.id, project_id || null]
     );
 
     const newList = result.rows[0];
@@ -331,11 +341,21 @@ app.post('/api/lists', authenticateToken, async (req, res) => {
 
 app.put('/api/lists/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  let { name, description } = req.body;
+  let { name, description, project_id } = req.body;
 
   // Sanitize inputs
   name = sanitizeInput(name);
   description = sanitizeInput(description);
+
+  // Validate optional project_id: if provided (and not null), caller must be a member of that project's workspace
+  if (project_id !== undefined && project_id !== null) {
+    const { getWorkspaceIdForProject } = require('./services/projectService');
+    const { getWorkspaceRole } = require('./middleware/permissions');
+    const wsId = await getWorkspaceIdForProject(pool, project_id);
+    if (!wsId || !(await getWorkspaceRole(pool, wsId, req.user.id))) {
+      return res.status(403).json({ error: 'No access to that project' });
+    }
+  }
 
   try {
     // Check permissions
@@ -358,10 +378,19 @@ app.put('/api/lists/:id', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'No edit permission' });
     }
 
-    const result = await pool.query(
-      'UPDATE lists SET name = $1, description = $2, updated_at = NOW() WHERE id = $3 RETURNING *',
-      [name, description, id]
-    );
+    // Build update query — project_id in body overrides existing value (null = unassign)
+    let result;
+    if (project_id !== undefined) {
+      result = await pool.query(
+        'UPDATE lists SET name = $1, description = $2, project_id = $3, updated_at = NOW() WHERE id = $4 RETURNING *',
+        [name, description, project_id === null ? null : project_id, id]
+      );
+    } else {
+      result = await pool.query(
+        'UPDATE lists SET name = $1, description = $2, updated_at = NOW() WHERE id = $3 RETURNING *',
+        [name, description, id]
+      );
+    }
 
     const updatedList = result.rows[0];
     const isOwner = updatedList.user_id === req.user.id;
