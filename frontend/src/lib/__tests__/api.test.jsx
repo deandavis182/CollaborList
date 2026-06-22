@@ -11,6 +11,8 @@ vi.mock('axios', () => {
   const mockInstance = {
     get: vi.fn(),
     post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
     interceptors: {
       request: {
         use: vi.fn((fn) => {
@@ -31,12 +33,16 @@ vi.mock('axios', () => {
 
 // Import AFTER mocking
 import axios from 'axios'
+// Also need put/delete on the mock instance — add them after initial import
 import {
   apiClient,
   useWorkspaces,
   useCreateWorkspace,
   useProjects,
   useCreateProject,
+  useUpdateProject,
+  useDeleteProject,
+  useProjectLists,
 } from '../api.js'
 
 // ---------------------------------------------------------------------------
@@ -348,5 +354,182 @@ describe('useCreateProject', () => {
       const cached = queryClient.getQueryData(['projects', 5])
       return !cached?.some((p) => String(p.id).startsWith('temp-'))
     })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// useUpdateProject
+// ---------------------------------------------------------------------------
+
+describe('useUpdateProject', () => {
+  let queryClient
+
+  beforeEach(() => {
+    queryClient = makeQueryClient()
+    vi.resetAllMocks()
+  })
+
+  it('calls PUT /projects/:id with the provided fields', async () => {
+    const updated = { id: 10, name: 'Renamed', color: '#AABBCC' }
+    apiClient.put.mockResolvedValueOnce({ data: updated })
+    apiClient.get.mockResolvedValueOnce({ data: [updated] }) // invalidation refetch
+
+    const { result } = renderHook(() => useUpdateProject(5), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate({ id: 10, name: 'Renamed', color: '#AABBCC' })
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(apiClient.put).toHaveBeenCalledWith('/projects/10', { name: 'Renamed', color: '#AABBCC' })
+  })
+
+  it('invalidates ["projects", workspaceId] on success', async () => {
+    apiClient.put.mockResolvedValueOnce({ data: { id: 10, name: 'Updated' } })
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    apiClient.get.mockResolvedValueOnce({ data: [] })
+
+    const { result } = renderHook(() => useUpdateProject(5), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate({ id: 10, name: 'Updated' })
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['projects', 5] })
+  })
+
+  it('does not call GET when PUT fails', async () => {
+    apiClient.put.mockRejectedValueOnce(new Error('Server error'))
+
+    const { result } = renderHook(() => useUpdateProject(5), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate({ id: 10, name: 'Bad' })
+    })
+
+    await waitFor(() => expect(result.current.isError).toBe(true))
+
+    // No invalidation refetch should have occurred
+    expect(apiClient.get).not.toHaveBeenCalled()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// useDeleteProject
+// ---------------------------------------------------------------------------
+
+describe('useDeleteProject', () => {
+  let queryClient
+
+  beforeEach(() => {
+    queryClient = makeQueryClient()
+    vi.resetAllMocks()
+  })
+
+  it('calls DELETE /projects/:id', async () => {
+    apiClient.delete.mockResolvedValueOnce({ data: { success: true } })
+    apiClient.get.mockResolvedValueOnce({ data: [] }) // invalidation refetch
+
+    const { result } = renderHook(() => useDeleteProject(5), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate(10)
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(apiClient.delete).toHaveBeenCalledWith('/projects/10')
+  })
+
+  it('invalidates ["projects", workspaceId] on success', async () => {
+    apiClient.delete.mockResolvedValueOnce({ data: { success: true } })
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    apiClient.get.mockResolvedValueOnce({ data: [] })
+
+    const { result } = renderHook(() => useDeleteProject(5), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate(10)
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['projects', 5] })
+  })
+
+  it('surfaces errors from a failed delete', async () => {
+    apiClient.delete.mockRejectedValueOnce(new Error('Forbidden'))
+
+    const { result } = renderHook(() => useDeleteProject(5), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate(10)
+    })
+
+    await waitFor(() => expect(result.current.isError).toBe(true))
+    expect(result.current.error.message).toBe('Forbidden')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// useProjectLists
+// ---------------------------------------------------------------------------
+
+describe('useProjectLists', () => {
+  let queryClient
+
+  beforeEach(() => {
+    queryClient = makeQueryClient()
+    vi.resetAllMocks()
+  })
+
+  it('returns data from GET /projects/:id/lists', async () => {
+    const lists = [{ id: 1, name: 'Guest List' }, { id: 2, name: 'Vendors' }]
+    apiClient.get.mockResolvedValueOnce({ data: lists })
+
+    const { result } = renderHook(() => useProjectLists(7), { wrapper: wrapper(queryClient) })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(result.current.data).toEqual(lists)
+    expect(apiClient.get).toHaveBeenCalledWith('/projects/7/lists')
+  })
+
+  it('uses query key ["projectLists", projectId]', async () => {
+    apiClient.get.mockResolvedValueOnce({ data: [] })
+
+    const { result } = renderHook(() => useProjectLists(7), { wrapper: wrapper(queryClient) })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    // Data is accessible under the expected cache key
+    const cached = queryClient.getQueryData(['projectLists', 7])
+    expect(cached).toEqual([])
+  })
+
+  it('is disabled when projectId is null', () => {
+    const { result } = renderHook(() => useProjectLists(null), { wrapper: wrapper(queryClient) })
+
+    expect(result.current.fetchStatus).toBe('idle')
+    expect(apiClient.get).not.toHaveBeenCalled()
+  })
+
+  it('is disabled when projectId is undefined', () => {
+    const { result } = renderHook(() => useProjectLists(undefined), { wrapper: wrapper(queryClient) })
+
+    expect(result.current.fetchStatus).toBe('idle')
+    expect(apiClient.get).not.toHaveBeenCalled()
+  })
+
+  it('surfaces errors from the API', async () => {
+    apiClient.get.mockRejectedValueOnce(new Error('Not found'))
+
+    const { result } = renderHook(() => useProjectLists(7), { wrapper: wrapper(queryClient) })
+
+    await waitFor(() => expect(result.current.isError).toBe(true))
+    expect(result.current.error.message).toBe('Not found')
   })
 })

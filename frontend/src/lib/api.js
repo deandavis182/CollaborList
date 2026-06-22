@@ -110,6 +110,62 @@ export function useProjects(workspaceId) {
 }
 
 /**
+ * Update an existing project.
+ * mutationFn receives { id, ...fields } where fields may include
+ * name, color, wedding_date, archived, position.
+ * onSuccess invalidates ['projects', workspaceId].
+ */
+export function useUpdateProject(workspaceId) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, ...fields }) => {
+      const { data } = await apiClient.put(`/projects/${id}`, fields)
+      return data
+    },
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects', workspaceId] })
+    },
+  })
+}
+
+/**
+ * Delete a project by id.
+ * mutationFn receives the project id.
+ * onSuccess invalidates ['projects', workspaceId].
+ */
+export function useDeleteProject(workspaceId) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id) => {
+      const { data } = await apiClient.delete(`/projects/${id}`)
+      return data
+    },
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects', workspaceId] })
+    },
+  })
+}
+
+/**
+ * Fetch all lists belonging to a project.
+ * Only enabled when projectId is truthy.
+ */
+export function useProjectLists(projectId) {
+  return useQuery({
+    queryKey: ['projectLists', projectId],
+    queryFn: async () => {
+      const { data } = await apiClient.get(`/projects/${projectId}/lists`)
+      return data
+    },
+    enabled: Boolean(projectId),
+  })
+}
+
+/**
  * Create a new project in a workspace with optimistic update.
  */
 export function useCreateProject(workspaceId) {
