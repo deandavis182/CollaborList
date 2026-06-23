@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import React from 'react'
 
@@ -130,8 +130,10 @@ describe('EnableNotifications — default / enable flow', () => {
     // Click and wait for the async subscribe to resolve
     fireEvent.click(screen.getByTestId('enable-push-btn'))
     // The component calls subscribeToPush; on resolve it sets state → granted
-    await vi.waitFor(() => {
-      expect(subscribeToPush).toHaveBeenCalledTimes(1)
+    expect(subscribeToPush).toHaveBeenCalledTimes(1)
+    // After subscribe resolves the component should flip to the granted UI
+    await waitFor(() => {
+      expect(screen.getByTestId('push-on')).toBeInTheDocument()
     })
   })
 })

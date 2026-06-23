@@ -101,9 +101,10 @@ export function AppLayout({ children }) {
           </Button>
         </div>
 
-        {/* Notification prefs sheet */}
-        <NotificationPrefs open={notifOpen} onClose={() => setNotifOpen(false)} />
       </header>
+
+      {/* Notification prefs sheet — rendered outside header to avoid landmark nesting */}
+      <NotificationPrefs open={notifOpen} onClose={() => setNotifOpen(false)} />
 
       {/* ------------------------------------------------------------------ */}
       {/* Main row: sidebar + content                                          */}
