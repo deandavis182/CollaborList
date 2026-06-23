@@ -7,8 +7,10 @@
  *   disabled    : boolean          — disable the entire composer (default: false)
  */
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useCreateComment, useWorkspaceMembers } from '../../lib/api.js'
+import { useStore } from '../../lib/store.js'
+import { EVENTS } from '../../lib/events.js'
 import { Button } from '../../ui/Button.jsx'
 import { Toast } from '../../ui/Toast.jsx'
 
@@ -48,7 +50,7 @@ function replaceMentionFragment(text, caret, replacement) {
 // Component
 // ---------------------------------------------------------------------------
 
-export function CommentComposer({ itemId, workspaceId, disabled = false }) {
+export function CommentComposer({ itemId, workspaceId, listId, disabled = false }) {
   const [body, setBody] = useState('')
   // caretPos tracks the caret position used to detect the @mention fragment
   const [caretPos, setCaretPos] = useState(0)
@@ -57,9 +59,27 @@ export function CommentComposer({ itemId, workspaceId, disabled = false }) {
   const [errorToast, setErrorToast] = useState(null)
 
   const textareaRef = useRef(null)
+  // typing state tracking
+  const isTypingRef = useRef(false)
+  const typingDebounceRef = useRef(null)
+
+  const socket = useStore((s) => s.socket)
 
   const createComment = useCreateComment(itemId)
   const { data: members = [] } = useWorkspaceMembers(workspaceId)
+
+  // Emit typing:false and clean up on unmount
+  useEffect(() => {
+    return () => {
+      if (typingDebounceRef.current) {
+        clearTimeout(typingDebounceRef.current)
+      }
+      if (isTypingRef.current && socket && listId != null) {
+        socket.emit(EVENTS.TYPING, { listId, isTyping: false })
+        isTypingRef.current = false
+      }
+    }
+  }, [socket, listId])
 
   // ---------------------------------------------------------------------------
   // @mention detection — derived from body + caretPos
@@ -76,6 +96,34 @@ export function CommentComposer({ itemId, workspaceId, disabled = false }) {
       : []
 
   const showMenu = activeMentionFragment !== null && filteredMembers.length > 0
+
+  // ---------------------------------------------------------------------------
+  // Typing emit helpers
+  // ---------------------------------------------------------------------------
+  function emitTypingStop() {
+    if (!socket || listId == null) return
+    if (typingDebounceRef.current) {
+      clearTimeout(typingDebounceRef.current)
+      typingDebounceRef.current = null
+    }
+    if (isTypingRef.current) {
+      socket.emit(EVENTS.TYPING, { listId, isTyping: false })
+      isTypingRef.current = false
+    }
+  }
+
+  function scheduleTypingStop() {
+    if (!socket || listId == null) return
+    if (typingDebounceRef.current) {
+      clearTimeout(typingDebounceRef.current)
+    }
+    typingDebounceRef.current = setTimeout(() => {
+      if (isTypingRef.current && socket && listId != null) {
+        socket.emit(EVENTS.TYPING, { listId, isTyping: false })
+        isTypingRef.current = false
+      }
+    }, 2000)
+  }
 
   // ---------------------------------------------------------------------------
   // Handlers
@@ -95,6 +143,19 @@ export function CommentComposer({ itemId, workspaceId, disabled = false }) {
     if (frag !== null) {
       setMentionDismissed(false)
     }
+
+    // Typing emit: emit once on first keystroke, then debounce stop
+    if (socket && listId != null) {
+      if (!isTypingRef.current) {
+        socket.emit(EVENTS.TYPING, { listId, isTyping: true })
+        isTypingRef.current = true
+      }
+      scheduleTypingStop()
+    }
+  }
+
+  function handleBlur() {
+    emitTypingStop()
   }
 
   function handleSelect(e) {
@@ -169,6 +230,7 @@ export function CommentComposer({ itemId, workspaceId, disabled = false }) {
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           onSelect={handleSelect}
+          onBlur={handleBlur}
           disabled={disabled}
           rows={3}
           placeholder="Write a comment… (@mention to notify)"

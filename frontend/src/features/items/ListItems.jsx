@@ -6,7 +6,7 @@
  *   members : array            — [{ user_id, email }] passed through to ItemRow
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useListItems, useCreateItem, useUpdateItem } from '../../lib/api.js'
 import { useStore } from '../../lib/store.js'
 import { Button } from '../../ui/Button.jsx'
@@ -53,6 +53,14 @@ export function ListItems({ listId, members = [] }) {
   const openDetail = useStore((s) => s.openDetail)
 
   const [addText, setAddText] = useState('')
+
+  // Emit presence-list on mount / when listId changes so the server knows
+  // which list this user is currently viewing.
+  useEffect(() => {
+    if (!listId) return
+    const socket = useStore.getState().socket
+    socket?.emit('presence-list', listId)
+  }, [listId])
 
   const depthMap = buildDepthMap(items)
 

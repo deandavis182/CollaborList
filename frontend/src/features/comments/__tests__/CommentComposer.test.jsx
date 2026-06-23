@@ -14,6 +14,7 @@ vi.mock('../../../lib/api.js', () => ({
 }))
 
 import { useCreateComment, useWorkspaceMembers } from '../../../lib/api.js'
+import { useStore } from '../../../lib/store.js'
 import { CommentComposer } from '../CommentComposer.jsx'
 
 // ---------------------------------------------------------------------------
@@ -44,6 +45,10 @@ function setupMocks({ mutateSpy = vi.fn(), members = MEMBERS, onError } = {}) {
   useWorkspaceMembers.mockReturnValue({ data: members })
 }
 
+function resetStore() {
+  useStore.setState({ socket: null })
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -51,6 +56,7 @@ describe('CommentComposer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
+    resetStore()
   })
 
   // -------------------------------------------------------------------------
@@ -59,7 +65,7 @@ describe('CommentComposer', () => {
   it('renders with data-testid="comment-composer"', () => {
     setupMocks()
 
-    render(<CommentComposer itemId={5} workspaceId="ws-1" />, { wrapper: Wrapper })
+    render(<CommentComposer itemId={5} workspaceId="ws-1" listId={10} />, { wrapper: Wrapper })
 
     expect(screen.getByTestId('comment-composer')).toBeInTheDocument()
   })
@@ -74,7 +80,7 @@ describe('CommentComposer', () => {
     })
     setupMocks({ mutateSpy })
 
-    render(<CommentComposer itemId={5} workspaceId="ws-1" />, { wrapper: Wrapper })
+    render(<CommentComposer itemId={5} workspaceId="ws-1" listId={10} />, { wrapper: Wrapper })
 
     const textarea = screen.getByRole('textbox')
     fireEvent.change(textarea, { target: { value: 'Hello world' } })
@@ -96,7 +102,7 @@ describe('CommentComposer', () => {
     const mutateSpy = vi.fn()
     setupMocks({ mutateSpy })
 
-    render(<CommentComposer itemId={5} workspaceId="ws-1" />, { wrapper: Wrapper })
+    render(<CommentComposer itemId={5} workspaceId="ws-1" listId={10} />, { wrapper: Wrapper })
 
     fireEvent.click(screen.getByRole('button', { name: /comment|send/i }))
 
@@ -107,7 +113,7 @@ describe('CommentComposer', () => {
     const mutateSpy = vi.fn()
     setupMocks({ mutateSpy })
 
-    render(<CommentComposer itemId={5} workspaceId="ws-1" />, { wrapper: Wrapper })
+    render(<CommentComposer itemId={5} workspaceId="ws-1" listId={10} />, { wrapper: Wrapper })
 
     const textarea = screen.getByRole('textbox')
     fireEvent.change(textarea, { target: { value: '   ' } })
@@ -124,7 +130,7 @@ describe('CommentComposer', () => {
     const mutateSpy = vi.fn()
     setupMocks({ mutateSpy })
 
-    render(<CommentComposer itemId={5} workspaceId="ws-1" />, { wrapper: Wrapper })
+    render(<CommentComposer itemId={5} workspaceId="ws-1" listId={10} />, { wrapper: Wrapper })
 
     const textarea = screen.getByRole('textbox')
     fireEvent.change(textarea, { target: { value: 'Enter submit' } })
@@ -140,7 +146,7 @@ describe('CommentComposer', () => {
     const mutateSpy = vi.fn()
     setupMocks({ mutateSpy })
 
-    render(<CommentComposer itemId={5} workspaceId="ws-1" />, { wrapper: Wrapper })
+    render(<CommentComposer itemId={5} workspaceId="ws-1" listId={10} />, { wrapper: Wrapper })
 
     const textarea = screen.getByRole('textbox')
     fireEvent.change(textarea, { target: { value: 'Multiline\n' } })
@@ -155,7 +161,7 @@ describe('CommentComposer', () => {
   it('typing @ in textarea shows the mention menu with all members', () => {
     setupMocks()
 
-    render(<CommentComposer itemId={5} workspaceId="ws-1" />, { wrapper: Wrapper })
+    render(<CommentComposer itemId={5} workspaceId="ws-1" listId={10} />, { wrapper: Wrapper })
 
     const textarea = screen.getByRole('textbox')
     fireEvent.change(textarea, { target: { value: '@' } })
@@ -173,7 +179,7 @@ describe('CommentComposer', () => {
   it('typing @al filters members to those matching "al" in email', () => {
     setupMocks()
 
-    render(<CommentComposer itemId={5} workspaceId="ws-1" />, { wrapper: Wrapper })
+    render(<CommentComposer itemId={5} workspaceId="ws-1" listId={10} />, { wrapper: Wrapper })
 
     const textarea = screen.getByRole('textbox')
     fireEvent.change(textarea, { target: { value: '@al' } })
@@ -189,7 +195,7 @@ describe('CommentComposer', () => {
   it('filtering is case-insensitive', () => {
     setupMocks()
 
-    render(<CommentComposer itemId={5} workspaceId="ws-1" />, { wrapper: Wrapper })
+    render(<CommentComposer itemId={5} workspaceId="ws-1" listId={10} />, { wrapper: Wrapper })
 
     const textarea = screen.getByRole('textbox')
     fireEvent.change(textarea, { target: { value: '@AL' } })
@@ -205,7 +211,7 @@ describe('CommentComposer', () => {
   it('clicking a mention option inserts @local-part followed by space and closes menu', () => {
     setupMocks()
 
-    render(<CommentComposer itemId={5} workspaceId="ws-1" />, { wrapper: Wrapper })
+    render(<CommentComposer itemId={5} workspaceId="ws-1" listId={10} />, { wrapper: Wrapper })
 
     const textarea = screen.getByRole('textbox')
     fireEvent.change(textarea, { target: { value: 'Hey @ali' } })
@@ -226,7 +232,7 @@ describe('CommentComposer', () => {
   it('pressing Escape closes the mention menu without inserting', () => {
     setupMocks()
 
-    render(<CommentComposer itemId={5} workspaceId="ws-1" />, { wrapper: Wrapper })
+    render(<CommentComposer itemId={5} workspaceId="ws-1" listId={10} />, { wrapper: Wrapper })
 
     const textarea = screen.getByRole('textbox')
     fireEvent.change(textarea, { target: { value: '@al' } })
@@ -246,7 +252,7 @@ describe('CommentComposer', () => {
   it('menu disappears when text before caret no longer matches @fragment', () => {
     setupMocks()
 
-    render(<CommentComposer itemId={5} workspaceId="ws-1" />, { wrapper: Wrapper })
+    render(<CommentComposer itemId={5} workspaceId="ws-1" listId={10} />, { wrapper: Wrapper })
 
     const textarea = screen.getByRole('textbox')
     fireEvent.change(textarea, { target: { value: '@al' } })
@@ -269,7 +275,7 @@ describe('CommentComposer', () => {
     useCreateComment.mockReturnValue({ mutate: mutateSpy, isPending: false })
     useWorkspaceMembers.mockReturnValue({ data: MEMBERS })
 
-    render(<CommentComposer itemId={5} workspaceId="ws-1" />, { wrapper: Wrapper })
+    render(<CommentComposer itemId={5} workspaceId="ws-1" listId={10} />, { wrapper: Wrapper })
 
     const textarea = screen.getByRole('textbox')
     fireEvent.change(textarea, { target: { value: 'test comment' } })
@@ -290,9 +296,88 @@ describe('CommentComposer', () => {
     const mutateSpy = vi.fn()
     setupMocks({ mutateSpy })
 
-    render(<CommentComposer itemId={5} workspaceId="ws-1" disabled />, { wrapper: Wrapper })
+    render(<CommentComposer itemId={5} workspaceId="ws-1" listId={10} disabled />, { wrapper: Wrapper })
 
     const button = screen.getByRole('button', { name: /comment|send/i })
     expect(button).toBeDisabled()
+  })
+
+  // -------------------------------------------------------------------------
+  // 12. Typing emits 'typing' event on socket (throttled)
+  // -------------------------------------------------------------------------
+  it('typing in textarea emits typing:true once on first keystroke, then typing:false after 2s (fake timers)', () => {
+    vi.useFakeTimers()
+    const socketEmit = vi.fn()
+    useStore.setState({ socket: { emit: socketEmit } })
+    setupMocks()
+
+    render(<CommentComposer itemId={5} workspaceId="ws-1" listId={10} />, { wrapper: Wrapper })
+
+    const textarea = screen.getByRole('textbox')
+
+    // First keystroke — should emit isTyping:true exactly once
+    fireEvent.change(textarea, { target: { value: 'h' } })
+    expect(socketEmit).toHaveBeenCalledTimes(1)
+    expect(socketEmit).toHaveBeenCalledWith('typing', { listId: 10, isTyping: true })
+
+    // Second keystroke — already flagged as typing, no new emit
+    fireEvent.change(textarea, { target: { value: 'he' } })
+    expect(socketEmit).toHaveBeenCalledTimes(1)
+
+    // Advance fake timers past the 2s debounce → typing:false
+    vi.advanceTimersByTime(2100)
+    expect(socketEmit).toHaveBeenCalledTimes(2)
+    expect(socketEmit).toHaveBeenLastCalledWith('typing', { listId: 10, isTyping: false })
+
+    vi.useRealTimers()
+  })
+
+  it('blur emits typing:false immediately', () => {
+    vi.useFakeTimers()
+    const socketEmit = vi.fn()
+    useStore.setState({ socket: { emit: socketEmit } })
+    setupMocks()
+
+    render(<CommentComposer itemId={5} workspaceId="ws-1" listId={10} />, { wrapper: Wrapper })
+
+    const textarea = screen.getByRole('textbox')
+
+    fireEvent.change(textarea, { target: { value: 'hello' } })
+    expect(socketEmit).toHaveBeenCalledWith('typing', { listId: 10, isTyping: true })
+
+    // Blur before 2s expires
+    fireEvent.blur(textarea)
+    expect(socketEmit).toHaveBeenLastCalledWith('typing', { listId: 10, isTyping: false })
+
+    vi.useRealTimers()
+  })
+
+  it('does not emit when socket is null', () => {
+    vi.useFakeTimers()
+    useStore.setState({ socket: null })
+    setupMocks()
+
+    render(<CommentComposer itemId={5} workspaceId="ws-1" listId={10} />, { wrapper: Wrapper })
+
+    const textarea = screen.getByRole('textbox')
+    // Should not throw
+    fireEvent.change(textarea, { target: { value: 'h' } })
+
+    vi.useRealTimers()
+  })
+
+  it('does not emit when listId is null', () => {
+    vi.useFakeTimers()
+    const socketEmit = vi.fn()
+    useStore.setState({ socket: { emit: socketEmit } })
+    setupMocks()
+
+    render(<CommentComposer itemId={5} workspaceId="ws-1" />, { wrapper: Wrapper })
+
+    const textarea = screen.getByRole('textbox')
+    fireEvent.change(textarea, { target: { value: 'h' } })
+    expect(socketEmit).not.toHaveBeenCalled()
+
+    vi.useRealTimers()
   })
 })

@@ -18,6 +18,7 @@ import { useStore } from '../lib/store.js'
 import { Sheet } from '../ui/index.js'
 import { Sidebar } from './Sidebar.jsx'
 import { BottomTabBar } from './BottomTabBar.jsx'
+import { PresenceBar } from '../features/collab/PresenceBar.jsx'
 import { useState } from 'react'
 
 export function AppLayout({ children }) {
@@ -30,6 +31,16 @@ export function AppLayout({ children }) {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-bg">
+      {/* ------------------------------------------------------------------ */}
+      {/* App header — slim bar across the top with presence avatars           */}
+      {/* ------------------------------------------------------------------ */}
+      <header
+        data-testid="app-header"
+        className="h-12 border-b border-border bg-surface flex items-center justify-end px-4 shrink-0"
+      >
+        <PresenceBar />
+      </header>
+
       {/* ------------------------------------------------------------------ */}
       {/* Main row: sidebar + content                                          */}
       {/* ------------------------------------------------------------------ */}

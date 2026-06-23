@@ -11,13 +11,14 @@
 import { useItemComments, useDeleteComment } from '../../lib/api.js'
 import { Avatar } from '../../ui/Avatar.jsx'
 import { CommentComposer } from './CommentComposer.jsx'
+import { TypingIndicator } from '../collab/TypingIndicator.jsx'
 import { relativeTime } from '../../lib/relativeTime.js'
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export function CommentThread({ itemId, workspaceId }) {
+export function CommentThread({ itemId, workspaceId, listId }) {
   const { data: comments = [], isLoading } = useItemComments(itemId)
   const deleteComment = useDeleteComment(itemId)
 
@@ -83,11 +84,11 @@ export function CommentThread({ itemId, workspaceId }) {
         </ul>
       )}
 
-      {/* Task 3B.9 placeholder — TypingIndicator will mount here */}
-      {/* <TypingIndicator listId={...} /> */}
+      {/* Typing indicator — shows who is typing in this list's threads */}
+      <TypingIndicator listId={listId} />
 
       {/* Composer */}
-      <CommentComposer itemId={itemId} workspaceId={workspaceId} />
+      <CommentComposer itemId={itemId} workspaceId={workspaceId} listId={listId} />
     </div>
   )
 }

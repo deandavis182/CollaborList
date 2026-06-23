@@ -36,6 +36,7 @@ function resetStore() {
     detailItemId: null,
     presence: {},
     theme: 'light',
+    socket: null,
   })
 }
 
@@ -218,6 +219,27 @@ describe('ListItems', () => {
     fireEvent.click(addButton)
 
     expect(createMutate).not.toHaveBeenCalled()
+  })
+
+  // ---- presence-list emit on mount ----
+  it('emits presence-list with listId when socket is in the store', () => {
+    const socketEmit = vi.fn()
+    useStore.setState({ socket: { emit: socketEmit } })
+    setupDefaultMocks({ items: [] })
+
+    render(<ListItems listId="list-42" />, { wrapper: Wrapper })
+
+    expect(socketEmit).toHaveBeenCalledWith('presence-list', 'list-42')
+  })
+
+  it('does not throw when socket is null', () => {
+    useStore.setState({ socket: null })
+    setupDefaultMocks({ items: [] })
+
+    // Should render without error
+    expect(() =>
+      render(<ListItems listId="list-1" />, { wrapper: Wrapper })
+    ).not.toThrow()
   })
 
   // ---- nesting: child has greater padding than parent ----

@@ -96,6 +96,21 @@ describe('AppLayout — structure', () => {
   })
 })
 
+describe('AppLayout — header + presence bar', () => {
+  beforeEach(resetStore)
+
+  it('renders the app-header', () => {
+    render(<AppLayout><span /></AppLayout>, { wrapper: Wrapper })
+    expect(screen.getByTestId('app-header')).toBeInTheDocument()
+  })
+
+  it('renders the presence-bar inside the app-header', () => {
+    render(<AppLayout><span /></AppLayout>, { wrapper: Wrapper })
+    const header = screen.getByTestId('app-header')
+    expect(header.querySelector('[data-testid="presence-bar"]')).toBeTruthy()
+  })
+})
+
 describe('AppLayout — detail sheet', () => {
   beforeEach(resetStore)
 

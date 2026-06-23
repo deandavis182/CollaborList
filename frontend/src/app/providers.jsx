@@ -62,11 +62,13 @@ export function Providers({ children }) {
     if (!token) return
 
     const socket = createSocket(token)
+    useStore.getState().setSocket(socket)
     const cleanup = registerSocketHandlers(socket, queryClient)
 
     return () => {
       cleanup()
       socket.disconnect?.()
+      useStore.getState().setSocket(null)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -149,7 +149,7 @@ export function ItemDetailDrawer({ listId, workspaceId }) {
 
         {/* 6. Comments */}
         {item && (
-          <CommentThread itemId={item.id} workspaceId={workspaceId} />
+          <CommentThread itemId={item.id} workspaceId={workspaceId} listId={listId} />
         )}
 
       </div>
