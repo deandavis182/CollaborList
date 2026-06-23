@@ -11,7 +11,7 @@
 import { useItemComments, useDeleteComment } from '../../lib/api.js'
 import { Avatar } from '../../ui/Avatar.jsx'
 import { CommentComposer } from './CommentComposer.jsx'
-import { relativeTime } from './relativeTime.js'
+import { relativeTime } from '../../lib/relativeTime.js'
 
 // ---------------------------------------------------------------------------
 // Component

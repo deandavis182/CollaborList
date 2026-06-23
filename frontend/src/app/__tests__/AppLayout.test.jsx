@@ -11,6 +11,8 @@ vi.mock('../../lib/api.js', () => ({
   useWorkspaces: vi.fn(() => ({ data: [], isLoading: false })),
   useCreateWorkspace: vi.fn(() => ({ mutate: vi.fn(), isPending: false, isError: false, error: null })),
   useProjects: vi.fn(() => ({ data: [], isLoading: false })),
+  useCreateProject: vi.fn(() => ({ mutate: vi.fn(), isPending: false, isError: false, error: null })),
+  useWorkspaceActivity: vi.fn(() => ({ data: { items: [], unread: 0 } })),
 }))
 
 import { useStore } from '../../lib/store.js'

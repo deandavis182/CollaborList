@@ -18,6 +18,7 @@ import { ProjectSettings } from '../features/projects/ProjectSettings.jsx'
 import { TagManager } from '../features/tags/TagManager.jsx'
 import { MemberManager } from '../features/members/MemberManager.jsx'
 import { MyTasksView } from '../features/tasks/MyTasksView.jsx'
+import { ActivityFeed } from '../features/collab/ActivityFeed.jsx'
 import { Sheet } from '../ui/Sheet.jsx'
 import { Button } from '../ui/Button.jsx'
 import { useStore } from '../lib/store.js'
@@ -285,6 +286,19 @@ export function ProjectView() {
 export { ProjectViewFeature as ProjectViewFeature }
 
 // ---------------------------------------------------------------------------
+// ActivityFeedRoute — reads workspaceId from URL params and passes to ActivityFeed
+// ---------------------------------------------------------------------------
+
+/**
+ * Thin wrapper that reads :workspaceId from the URL and passes it to
+ * ActivityFeed — mirrors the pattern used by WorkspaceView and ProjectView.
+ */
+export function ActivityFeedRoute() {
+  const { workspaceId } = useParams()
+  return <ActivityFeed workspaceId={workspaceId} />
+}
+
+// ---------------------------------------------------------------------------
 // Plain <Routes> tree — used in tests with <MemoryRouter>
 // ---------------------------------------------------------------------------
 
@@ -299,6 +313,7 @@ export function AppRoutes() {
         <Route index element={<HomeView />} />
         <Route path="my-tasks" element={<MyTasksView />} />
         <Route path="w/:workspaceId" element={<WorkspaceView />} />
+        <Route path="w/:workspaceId/activity" element={<ActivityFeedRoute />} />
         <Route path="w/:workspaceId/p/:projectId" element={<ProjectView />} />
       </Route>
     </Routes>
@@ -329,6 +344,7 @@ export function createAppRouter() {
         { index: true, element: <HomeView /> },
         { path: 'my-tasks', element: <MyTasksView /> },
         { path: 'w/:workspaceId', element: <WorkspaceView /> },
+        { path: 'w/:workspaceId/activity', element: <ActivityFeedRoute /> },
         { path: 'w/:workspaceId/p/:projectId', element: <ProjectView /> },
       ],
     },

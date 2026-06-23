@@ -8,15 +8,17 @@ import React from 'react'
 // Mock api hooks before importing the component.
 // useWorkspaces and useCreateWorkspace are used by WorkspaceSwitcher (rendered
 // inside Sidebar). useProjects is used directly by Sidebar.
+// useWorkspaceActivity is used by Sidebar to show the unread dot.
 // ---------------------------------------------------------------------------
 vi.mock('../../lib/api.js', () => ({
   useWorkspaces: vi.fn(),
   useCreateWorkspace: vi.fn(),
   useProjects: vi.fn(),
   useCreateProject: vi.fn(),
+  useWorkspaceActivity: vi.fn(),
 }))
 
-import { useWorkspaces, useCreateWorkspace, useProjects, useCreateProject } from '../../lib/api.js'
+import { useWorkspaces, useCreateWorkspace, useProjects, useCreateProject, useWorkspaceActivity } from '../../lib/api.js'
 import { useStore } from '../../lib/store.js'
 import { Sidebar } from '../Sidebar.jsx'
 
@@ -52,6 +54,7 @@ describe('Sidebar — workspaces (via WorkspaceSwitcher)', () => {
   beforeEach(() => {
     resetStore()
     useProjects.mockReturnValue({ data: [], isLoading: false })
+    useWorkspaceActivity.mockReturnValue({ data: { items: [], unread: 0 } })
     useCreateWorkspace.mockReturnValue({
       mutate: vi.fn(),
       isPending: false,
@@ -152,6 +155,7 @@ describe('Sidebar — My Tasks nav link', () => {
     resetStore()
     useWorkspaces.mockReturnValue({ data: [], isLoading: false })
     useProjects.mockReturnValue({ data: [], isLoading: false })
+    useWorkspaceActivity.mockReturnValue({ data: { items: [], unread: 0 } })
     useCreateWorkspace.mockReturnValue({
       mutate: vi.fn(),
       isPending: false,
@@ -187,6 +191,7 @@ describe('Sidebar — projects', () => {
   beforeEach(() => {
     resetStore()
     useStore.setState({ currentWorkspaceId: 5 })
+    useWorkspaceActivity.mockReturnValue({ data: { items: [], unread: 0 } })
     useCreateWorkspace.mockReturnValue({
       mutate: vi.fn(),
       isPending: false,
@@ -240,5 +245,88 @@ describe('Sidebar — projects', () => {
     fireEvent.click(screen.getByTestId('project-item-proj-99'))
 
     expect(useStore.getState().currentProjectId).toBe('proj-99')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Sidebar — Activity nav link + unread dot
+// ---------------------------------------------------------------------------
+
+describe('Sidebar — Activity nav link', () => {
+  const WORKSPACE_ID = 'ws-42'
+
+  function setupBase() {
+    resetStore()
+    useWorkspaces.mockReturnValue({ data: [], isLoading: false })
+    useProjects.mockReturnValue({ data: [], isLoading: false })
+    useCreateWorkspace.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      isError: false,
+      error: null,
+    })
+    useCreateProject.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      isError: false,
+      error: null,
+    })
+  }
+
+  it('renders the Activity nav link', () => {
+    setupBase()
+    useWorkspaceActivity.mockReturnValue({ data: { items: [], unread: 0 } })
+
+    render(<Sidebar />, { wrapper: Wrapper })
+    expect(screen.getByTestId('nav-activity')).toBeInTheDocument()
+  })
+
+  it('Activity link does NOT point to a workspace activity URL when no workspace is selected', () => {
+    setupBase()
+    useStore.setState({ currentWorkspaceId: null })
+    useWorkspaceActivity.mockReturnValue({ data: undefined })
+
+    render(<Sidebar />, { wrapper: Wrapper })
+    const link = screen.getByTestId('nav-activity')
+    // When no workspace is selected the link goes to '#' (resolved by MemoryRouter as '/');
+    // it should NOT contain '/activity' (which would indicate a real workspace URL)
+    expect(link.getAttribute('href')).not.toContain('/activity')
+  })
+
+  it('Activity link points to /w/:id/activity when currentWorkspaceId is set', () => {
+    setupBase()
+    useStore.setState({ currentWorkspaceId: WORKSPACE_ID })
+    useWorkspaceActivity.mockReturnValue({ data: { items: [], unread: 3 } })
+
+    render(<Sidebar />, { wrapper: Wrapper })
+    const link = screen.getByTestId('nav-activity')
+    expect(link).toHaveAttribute('href', `/w/${WORKSPACE_ID}/activity`)
+  })
+
+  it('shows unread dot when unread > 0', () => {
+    setupBase()
+    useStore.setState({ currentWorkspaceId: WORKSPACE_ID })
+    useWorkspaceActivity.mockReturnValue({ data: { items: [], unread: 3 } })
+
+    render(<Sidebar />, { wrapper: Wrapper })
+    expect(screen.getByTestId('activity-unread-dot')).toBeInTheDocument()
+  })
+
+  it('does NOT show unread dot when unread === 0', () => {
+    setupBase()
+    useStore.setState({ currentWorkspaceId: WORKSPACE_ID })
+    useWorkspaceActivity.mockReturnValue({ data: { items: [], unread: 0 } })
+
+    render(<Sidebar />, { wrapper: Wrapper })
+    expect(screen.queryByTestId('activity-unread-dot')).not.toBeInTheDocument()
+  })
+
+  it('does NOT show unread dot when activity data is undefined', () => {
+    setupBase()
+    useStore.setState({ currentWorkspaceId: WORKSPACE_ID })
+    useWorkspaceActivity.mockReturnValue({ data: undefined })
+
+    render(<Sidebar />, { wrapper: Wrapper })
+    expect(screen.queryByTestId('activity-unread-dot')).not.toBeInTheDocument()
   })
 })

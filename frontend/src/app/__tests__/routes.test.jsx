@@ -29,6 +29,8 @@ vi.mock('../../lib/api.js', () => ({
   useAddMember: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
   useRemoveMember: vi.fn(() => ({ mutate: vi.fn() })),
   useMyTasks: vi.fn(() => ({ data: [], isLoading: false })),
+  useWorkspaceActivity: vi.fn(() => ({ data: { items: [], unread: 0 }, isLoading: false })),
+  useMarkActivityRead: vi.fn(() => ({ mutate: vi.fn() })),
 }))
 
 import { useWorkspaces, useProjects } from '../../lib/api.js'
@@ -262,6 +264,40 @@ describe('routes — my-tasks (/my-tasks)', () => {
   it('shows empty state when useMyTasks returns no tasks', () => {
     renderAt('/my-tasks')
     expect(screen.getByTestId('mytasks-empty')).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Tests — ActivityFeed route (/w/:workspaceId/activity)
+// ---------------------------------------------------------------------------
+
+describe('routes — activity (/w/:workspaceId/activity)', () => {
+  beforeEach(() => {
+    resetStore()
+    useWorkspaces.mockReturnValue({ data: [], isLoading: false })
+    useProjects.mockReturnValue({ data: [], isLoading: false })
+  })
+
+  it('renders ActivityFeed at /w/ws-1/activity', () => {
+    renderAt('/w/ws-1/activity')
+    expect(screen.getByTestId('activity-feed')).toBeInTheDocument()
+  })
+
+  it('renders ActivityFeed inside AppLayout', () => {
+    renderAt('/w/ws-1/activity')
+    expect(screen.getByTestId('main-content')).toBeInTheDocument()
+  })
+
+  it('shows "Activity" heading at the activity route', () => {
+    renderAt('/w/ws-1/activity')
+    // Use the testid to scope to ActivityFeed rather than matching the sidebar link + BottomTabBar
+    const feed = screen.getByTestId('activity-feed')
+    expect(feed).toHaveTextContent('Activity')
+  })
+
+  it('shows empty state when there are no activity items', () => {
+    renderAt('/w/ws-1/activity')
+    expect(screen.getByTestId('activity-empty')).toBeInTheDocument()
   })
 })
 
