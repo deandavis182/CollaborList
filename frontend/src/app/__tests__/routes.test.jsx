@@ -28,6 +28,7 @@ vi.mock('../../lib/api.js', () => ({
   useWorkspaceMembers: vi.fn(() => ({ data: [], isLoading: false })),
   useAddMember: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
   useRemoveMember: vi.fn(() => ({ mutate: vi.fn() })),
+  useMyTasks: vi.fn(() => ({ data: [], isLoading: false })),
 }))
 
 import { useWorkspaces, useProjects } from '../../lib/api.js'
@@ -228,6 +229,39 @@ describe('routes — project (/w/:workspaceId/p/:projectId)', () => {
   it('shows empty state when project has no lists', () => {
     renderAt('/w/abc/p/xyz')
     expect(screen.getByTestId('project-view-empty')).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Tests — MyTasksView route (/my-tasks)
+// ---------------------------------------------------------------------------
+
+describe('routes — my-tasks (/my-tasks)', () => {
+  beforeEach(() => {
+    resetStore()
+    useWorkspaces.mockReturnValue({ data: [], isLoading: false })
+    useProjects.mockReturnValue({ data: [], isLoading: false })
+  })
+
+  it('renders MyTasksView at /my-tasks', () => {
+    renderAt('/my-tasks')
+    expect(screen.getByTestId('my-tasks-view')).toBeInTheDocument()
+  })
+
+  it('renders inside AppLayout at /my-tasks', () => {
+    renderAt('/my-tasks')
+    expect(screen.getByTestId('main-content')).toBeInTheDocument()
+  })
+
+  it('shows "My Tasks" heading at /my-tasks', () => {
+    renderAt('/my-tasks')
+    // The page h1 + the sidebar nav link both say "My Tasks"; check the view testid
+    expect(screen.getByTestId('my-tasks-view')).toHaveTextContent('My Tasks')
+  })
+
+  it('shows empty state when useMyTasks returns no tasks', () => {
+    renderAt('/my-tasks')
+    expect(screen.getByTestId('mytasks-empty')).toBeInTheDocument()
   })
 })
 

@@ -11,7 +11,7 @@ describe('taskService.forUser', () => {
   });
 
   test('issues query containing assignee_id = $1', async () => {
-    const rows = [{ id: 1, text: 'item', list_name: 'My List', project_name: null }];
+    const rows = [{ id: 1, text: 'item', list_name: 'My List', project_name: null, workspace_id: null }];
     mockPool.query.mockResolvedValueOnce({ rows });
 
     await forUser(mockPool, 42);
@@ -19,6 +19,15 @@ describe('taskService.forUser', () => {
     expect(mockPool.query).toHaveBeenCalledTimes(1);
     const [sql] = mockPool.query.mock.calls[0];
     expect(sql).toMatch(/assignee_id = \$1/);
+  });
+
+  test('query selects p.workspace_id AS workspace_id', async () => {
+    mockPool.query.mockResolvedValueOnce({ rows: [] });
+
+    await forUser(mockPool, 7);
+
+    const [sql] = mockPool.query.mock.calls[0];
+    expect(sql).toMatch(/p\.workspace_id AS workspace_id/);
   });
 
   test('query contains the owner access branch (l.user_id = $1)', async () => {

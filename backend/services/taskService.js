@@ -3,7 +3,7 @@
 
 async function forUser(pool, userId, { limit = 200 } = {}) {
   const r = await pool.query(
-    `SELECT li.*, l.name AS list_name, l.project_id AS project_id, p.name AS project_name
+    `SELECT li.*, l.name AS list_name, l.project_id AS project_id, p.name AS project_name, p.workspace_id AS workspace_id
 FROM list_items li
 JOIN lists l ON l.id = li.list_id
 LEFT JOIN projects p ON p.id = l.project_id

@@ -147,6 +147,42 @@ describe('Sidebar — workspaces (via WorkspaceSwitcher)', () => {
   })
 })
 
+describe('Sidebar — My Tasks nav link', () => {
+  beforeEach(() => {
+    resetStore()
+    useWorkspaces.mockReturnValue({ data: [], isLoading: false })
+    useProjects.mockReturnValue({ data: [], isLoading: false })
+    useCreateWorkspace.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      isError: false,
+      error: null,
+    })
+    useCreateProject.mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      isError: false,
+      error: null,
+    })
+  })
+
+  it('renders the My Tasks nav link', () => {
+    render(<Sidebar />, { wrapper: Wrapper })
+    expect(screen.getByTestId('nav-my-tasks')).toBeInTheDocument()
+  })
+
+  it('My Tasks link points to /my-tasks', () => {
+    render(<Sidebar />, { wrapper: Wrapper })
+    const link = screen.getByTestId('nav-my-tasks')
+    expect(link).toHaveAttribute('href', '/my-tasks')
+  })
+
+  it('My Tasks link has text "My Tasks"', () => {
+    render(<Sidebar />, { wrapper: Wrapper })
+    expect(screen.getByTestId('nav-my-tasks')).toHaveTextContent('My Tasks')
+  })
+})
+
 describe('Sidebar — projects', () => {
   beforeEach(() => {
     resetStore()
