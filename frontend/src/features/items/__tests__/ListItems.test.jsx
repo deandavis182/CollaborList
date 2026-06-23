@@ -261,4 +261,59 @@ describe('ListItems', () => {
 
     expect(childPadding).toBeGreaterThan(parentPadding)
   })
+
+  // ---- tag chips on rows (read-only) ----
+  it('renders read-only tag chips for an item with tags', () => {
+    setupDefaultMocks({
+      items: [
+        {
+          id: 'i1',
+          text: 'Tagged task',
+          completed: false,
+          tags: [
+            { id: 'tag-x', name: 'Urgent', color: '#ef4444' },
+            { id: 'tag-y', name: 'Bug', color: null },
+          ],
+        },
+      ],
+    })
+
+    render(<ListItems listId="list-1" />, { wrapper: Wrapper })
+
+    expect(screen.getByTestId('item-tag-tag-x')).toBeInTheDocument()
+    expect(screen.getByTestId('item-tag-tag-y')).toBeInTheDocument()
+    expect(screen.getByText('Urgent')).toBeInTheDocument()
+    expect(screen.getByText('Bug')).toBeInTheDocument()
+  })
+
+  it('renders no tag chips when item.tags is empty or absent', () => {
+    setupDefaultMocks({
+      items: [
+        { id: 'i1', text: 'No-tag task', completed: false, tags: [] },
+      ],
+    })
+
+    render(<ListItems listId="list-1" />, { wrapper: Wrapper })
+
+    expect(screen.queryByTestId(/^item-tag-/)).not.toBeInTheDocument()
+  })
+
+  it('tag chips on rows do NOT have remove buttons (read-only)', () => {
+    setupDefaultMocks({
+      items: [
+        {
+          id: 'i1',
+          text: 'Tagged task',
+          completed: false,
+          tags: [{ id: 'tag-x', name: 'Urgent', color: '#ef4444' }],
+        },
+      ],
+    })
+
+    render(<ListItems listId="list-1" />, { wrapper: Wrapper })
+
+    // The tag chip should be present but its Chip has no × button
+    expect(screen.getByTestId('item-tag-tag-x')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
+  })
 })

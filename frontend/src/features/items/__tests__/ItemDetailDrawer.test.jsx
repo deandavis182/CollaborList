@@ -13,9 +13,12 @@ vi.mock('../../../lib/api.js', () => ({
   useItemComments: vi.fn(),
   useCreateComment: vi.fn(),
   useDeleteComment: vi.fn(),
+  useTags: vi.fn(),
+  useAddItemTag: vi.fn(),
+  useRemoveItemTag: vi.fn(),
 }))
 
-import { useListItems, useUpdateItem, useWorkspaceMembers, useItemComments, useCreateComment, useDeleteComment } from '../../../lib/api.js'
+import { useListItems, useUpdateItem, useWorkspaceMembers, useItemComments, useCreateComment, useDeleteComment, useTags, useAddItemTag, useRemoveItemTag } from '../../../lib/api.js'
 import { useStore } from '../../../lib/store.js'
 import { ItemDetailDrawer } from '../ItemDetailDrawer.jsx'
 
@@ -77,6 +80,9 @@ describe('ItemDetailDrawer', () => {
     useItemComments.mockReturnValue({ data: [], isLoading: false })
     useCreateComment.mockReturnValue({ mutate: vi.fn(), isPending: false })
     useDeleteComment.mockReturnValue({ mutate: vi.fn() })
+    useTags.mockReturnValue({ data: [], isLoading: false })
+    useAddItemTag.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useRemoveItemTag.mockReturnValue({ mutate: vi.fn(), isPending: false })
   })
 
   afterEach(() => {
@@ -292,5 +298,44 @@ describe('ItemDetailDrawer', () => {
     render(<ItemDetailDrawer listId="list-1" workspaceId="ws-1" />, { wrapper: Wrapper })
 
     expect(screen.getByTestId('comment-thread')).toBeInTheDocument()
+  })
+
+  // -------------------------------------------------------------------------
+  // 10. Tags field renders TagPicker inside the open drawer (Task 4.T2)
+  // -------------------------------------------------------------------------
+  it('renders the Tags field with a TagPicker (data-testid="tag-picker") for the open item', () => {
+    useStore.setState({ detailItemId: 42 })
+    // Give the item some tags to display
+    const itemWithTags = { ...ITEM, tags: [{ id: 'tag-1', name: 'Urgent', color: '#ef4444' }] }
+    useListItems.mockReturnValue({ data: [itemWithTags], isLoading: false })
+
+    render(<ItemDetailDrawer listId="list-1" workspaceId="ws-1" />, { wrapper: Wrapper })
+
+    expect(screen.getByTestId('tag-picker')).toBeInTheDocument()
+  })
+
+  it('Tags field label is visible in the open drawer', () => {
+    useStore.setState({ detailItemId: 42 })
+
+    render(<ItemDetailDrawer listId="list-1" workspaceId="ws-1" />, { wrapper: Wrapper })
+
+    expect(screen.getByText('Tags')).toBeInTheDocument()
+  })
+
+  it('TagPicker shows item tags as chips inside the drawer', () => {
+    useStore.setState({ detailItemId: 42 })
+    const itemWithTags = {
+      ...ITEM,
+      tags: [
+        { id: 'tag-1', name: 'Urgent', color: '#ef4444' },
+        { id: 'tag-2', name: 'Bug', color: null },
+      ],
+    }
+    useListItems.mockReturnValue({ data: [itemWithTags], isLoading: false })
+
+    render(<ItemDetailDrawer listId="list-1" workspaceId="ws-1" />, { wrapper: Wrapper })
+
+    expect(screen.getByTestId('item-tag-tag-1')).toBeInTheDocument()
+    expect(screen.getByTestId('item-tag-tag-2')).toBeInTheDocument()
   })
 })

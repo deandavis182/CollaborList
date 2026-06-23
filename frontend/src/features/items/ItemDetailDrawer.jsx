@@ -17,6 +17,7 @@ import { StatusControl } from './StatusControl.jsx'
 import { AssigneePicker } from './AssigneePicker.jsx'
 import { DueDateField } from './DueDateField.jsx'
 import { CommentThread } from '../comments/CommentThread.jsx'
+import { TagPicker } from '../tags/TagPicker.jsx'
 
 export function ItemDetailDrawer({ listId, workspaceId }) {
   const detailItemId = useStore((s) => s.detailItemId)
@@ -136,7 +137,14 @@ export function ItemDetailDrawer({ listId, workspaceId }) {
           />
         </Field>
 
-        {/* 5. Notes — debounced 500ms */}
+        {/* 5. Tags */}
+        <Field label="Tags">
+          {item && (
+            <TagPicker item={item} workspaceId={workspaceId} listId={listId} />
+          )}
+        </Field>
+
+        {/* 6. Notes — debounced 500ms */}
         <Field label="Notes" htmlFor="item-detail-notes">
           <textarea
             id="item-detail-notes"
@@ -147,7 +155,7 @@ export function ItemDetailDrawer({ listId, workspaceId }) {
           />
         </Field>
 
-        {/* 6. Comments */}
+        {/* 7. Comments */}
         {item && (
           <CommentThread itemId={item.id} workspaceId={workspaceId} listId={listId} />
         )}

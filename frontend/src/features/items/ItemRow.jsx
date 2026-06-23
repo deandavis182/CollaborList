@@ -12,6 +12,15 @@
 import { Chip } from '../../ui/Chip.jsx'
 import { Avatar } from '../../ui/Avatar.jsx'
 
+/** Map a tag hex color to a Chip color token. */
+const TAG_COLOR_MAP = {
+  '#ef4444': 'danger',
+  '#22c55e': 'success',
+  '#eab308': 'warning',
+  '#3b82f6': 'primary',
+  '#8b5cf6': 'accent',
+}
+
 /** Map item.status to a Chip color variant. */
 const STATUS_COLOR = {
   'To do': 'neutral',
@@ -98,6 +107,19 @@ export function ItemRow({ item, depth = 0, members = [], onToggleComplete, onOpe
         <Chip color={isOverdue ? 'danger' : 'neutral'}>
           {new Date(item.due_date).toLocaleDateString()}
         </Chip>
+      )}
+
+      {/* Tag chips — read-only */}
+      {Array.isArray(item.tags) && item.tags.length > 0 && (
+        item.tags.map((tag) => (
+          <Chip
+            key={String(tag.id)}
+            data-testid={`item-tag-${tag.id}`}
+            color={TAG_COLOR_MAP[tag.color?.toLowerCase?.()] ?? 'neutral'}
+          >
+            {tag.name}
+          </Chip>
+        ))
       )}
 
       {/* Assignee avatar */}

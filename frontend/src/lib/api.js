@@ -557,6 +557,50 @@ export function useDeleteComment(itemId) {
 }
 
 // ---------------------------------------------------------------------------
+// Item tag hooks
+// ---------------------------------------------------------------------------
+
+/**
+ * Add a tag to an item.
+ * mutationFn receives { itemId, tag_id }.
+ * onSettled invalidates ['items', listId] so the item's tags refresh.
+ */
+export function useAddItemTag(listId) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ itemId, tag_id }) => {
+      const { data } = await apiClient.post(`/items/${String(itemId)}/tags`, { tag_id })
+      return data
+    },
+
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['items', listId] })
+    },
+  })
+}
+
+/**
+ * Remove a tag from an item.
+ * mutationFn receives { itemId, tagId }.
+ * onSettled invalidates ['items', listId] so the item's tags refresh.
+ */
+export function useRemoveItemTag(listId) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ itemId, tagId }) => {
+      const { data } = await apiClient.delete(`/items/${String(itemId)}/tags/${String(tagId)}`)
+      return data
+    },
+
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['items', listId] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
 // My Tasks hooks
 // ---------------------------------------------------------------------------
 

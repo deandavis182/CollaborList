@@ -16,6 +16,9 @@ vi.mock('../../../lib/api.js', () => ({
   useItemComments: vi.fn(() => ({ data: [], isLoading: false })),
   useCreateComment: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useDeleteComment: vi.fn(() => ({ mutate: vi.fn() })),
+  useTags: vi.fn(() => ({ data: [], isLoading: false })),
+  useAddItemTag: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useRemoveItemTag: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
 }))
 
 import { useWorkspaceMembers, useListItems } from '../../../lib/api.js'
