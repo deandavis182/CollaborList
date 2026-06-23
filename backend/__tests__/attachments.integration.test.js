@@ -278,6 +278,29 @@ describe('Attachments router (real DB)', () => {
 
       expect(r.status).toBe(404);
     });
+
+    test('filename with CR/LF is stripped from Content-Disposition header', async () => {
+      // Upload with a clean filename, then patch the DB row to have an embedded newline
+      const uploadRes = await request(app)
+        .post(`/api/items/${itemId}/attachments`)
+        .set('Authorization', `Bearer ${tokenFor(ownerId, OWNER)}`)
+        .attach('file', PNG_BUFFER, { filename: 'inject.png', contentType: 'image/png' });
+      expect(uploadRes.status).toBe(201);
+      const injId = uploadRes.body.id;
+
+      // Patch filename in DB to contain CR+LF
+      await pool.query("UPDATE attachments SET filename = $1 WHERE id = $2", ["bad\r\nname.png", injId]);
+
+      const r = await request(app)
+        .get(`/api/attachments/${injId}/download`)
+        .set('Authorization', `Bearer ${tokenFor(ownerId, OWNER)}`);
+
+      expect(r.status).toBe(200);
+      const disp = r.headers['content-disposition'];
+      expect(disp).not.toMatch(/\r/);
+      expect(disp).not.toMatch(/\n/);
+      expect(disp).toMatch('badname.png');
+    });
   });
 
   // ─── DELETE /api/attachments/:id ─────────────────────────────────────────

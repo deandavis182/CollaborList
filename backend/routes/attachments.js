@@ -61,10 +61,11 @@ module.exports = (authenticateToken, upload) => {
       if (!access.found || !access.canView) return res.status(403).json({ error: 'Not authorized' });
 
       const filePath = path.join(UPLOAD_DIR, att.storage_key);
-      if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File missing' });
       res.setHeader('Content-Type', att.mime_type);
-      res.setHeader('Content-Disposition', `inline; filename="${att.filename.replace(/"/g, '')}"`);
-      fs.createReadStream(filePath).pipe(res);
+      res.setHeader('Content-Disposition', `inline; filename="${att.filename.replace(/["\r\n]/g, '')}"`);
+      const stream = fs.createReadStream(filePath);
+      stream.on('error', () => { if (!res.headersSent) res.status(404).json({ error: 'File missing' }); });
+      stream.pipe(res);
     } catch (e) {
       console.error('GET download error:', e);
       res.status(500).json({ error: 'Download failed' });
