@@ -120,12 +120,24 @@ Permission: read comments/activity = list view; post/assign/status = list edit; 
   legible and the path to tasks is obvious. 632 tests. The full create-task loop now works end-to-end in the shell.
   **Parity flip STILL deferred to post-Phase-4** (new shell lacks the 4 views + drag/drop).
 
-### ⬜ Phase 4 — Views
-Spec §2 (views table). **Plan:** TBW (consider splitting per view). Segmented-control lens switch;
-**List** (enhanced: inline assignee/due/tags, group-by) → **Board** (Kanban by status/assignee,
-reuse @dnd-kit) → **Calendar** (due dates on month grid + live countdown to project `wedding_date`)
-→ **Timeline** (milestones). Per-user per-list view + group-by preference persistence. Project
-roll-up renders in any view.
+### ✅ Phase 4 — Views + PARITY FLIP — DONE (merged to main 2026-06-23, origin `956d068`)
+**Plan:** `2026-06-22-collaborlist-v2-phase4-views.md` (14 tasks + 3 E2E fixes). Delivered: backend items carry
+`tags[]` + `GET /api/projects/:id/items` roll-up; tag hooks + TagPicker; `useViewPref` (localStorage) + ViewSwitcher
++ ViewContainer; 4 view lenses — **List** (group-by none/completion/status/assignee/tag) → **Board** (@dnd-kit drag→status/assignee,
+pure `resolveBoardMove`) → **Calendar** (month grid + live **wedding countdown**) → **Timeline** (week buckets + wedding milestone);
+ListView + ProjectView roll-up ("Lists | All items") wired to ViewContainer; **auth in the new shell** (`lib/auth`, LoginView,
+RequireAuth, /login); **PARITY FLIP** — `main.jsx` now mounts the new shell, `createBrowserRouter`, single `index.html`,
+`v2.html`/`main-v2.jsx` deleted, `RealtimeApp.jsx` kept for rollback. 934 frontend tests; final review ready-to-merge.
+**LIVE PLAYWRIGHT E2E validated the full flow** and caught + fixed 2 bugs: (1) CRITICAL — new-shell apiClient never sent
+`X-CSRF-Token` so ALL mutations 403'd → fixed (interceptor); (2) pervasive date off-by-one (`new Date("YYYY-MM-DD")` UTC) →
+fixed via shared `lib/dates.js` (`parseLocalDay/formatDay/daysUntil`) swept across all date displays.
+**The new shell IS the app at `/` now (parity flip done).**
+- **PRE-DEPLOY (production) action items:** (a) Google OAuth is omitted from LoginView (TODO) — if prod `GOOGLE_CLIENT_ID` is
+  set, `/auth/register` is disabled (google-only) and there's no Google button → port Google before deploying, or confirm
+  email/password-only is acceptable. (b) Take the documented `pg_dump` snapshot before deploying (zero-loss rule).
+- **Carry-forwards:** extract `routes/items.js`+`services/itemService.js` (still inline; replica-tested); socket has no
+  `items-refresh` handler (add when cross-list drag lands); consolidate the tag hex→Chip-color map (now duplicated 4×);
+  auto-select the sole workspace for new users (minor UX); delete dead `ListItems.jsx`.
 
 ### ⬜ Phase 5 — Structured Fields
 Spec §5. **Plan:** TBW. `field_defs` per list + `item_fields` values (number/text/date/status/person);
