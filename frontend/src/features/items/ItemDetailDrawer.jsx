@@ -20,6 +20,7 @@ import { CommentThread } from '../comments/CommentThread.jsx'
 import { TagPicker } from '../tags/TagPicker.jsx'
 import { ItemFieldInputs } from '../fields/ItemFieldInputs.jsx'
 import { AttachmentList } from '../attachments/AttachmentList.jsx'
+import { RecurrencePicker } from './RecurrencePicker.jsx'
 
 export function ItemDetailDrawer({ listId, workspaceId }) {
   const detailItemId = useStore((s) => s.detailItemId)
@@ -139,7 +140,14 @@ export function ItemDetailDrawer({ listId, workspaceId }) {
           />
         </Field>
 
-        {/* 5. Tags */}
+        {/* 5. Repeat / recurrence */}
+        {item && (
+          <Field label="Repeat">
+            <RecurrencePicker item={item} />
+          </Field>
+        )}
+
+        {/* 6. Tags */}
         <Field label="Tags">
           {item && (
             <TagPicker item={item} workspaceId={workspaceId} listId={listId} />
