@@ -1159,6 +1159,9 @@ app.use('/api/me', require('./routes/tasks')(authenticateToken));
 // Structured fields routes (V2 — field-defs + per-item values)
 app.use('/api', require('./routes/fields')(authenticateToken, sanitizeInput, { list: emitListUpdate }));
 
+// Push subscription + notification prefs routes (V2 — web push)
+app.use('/api', require('./routes/push')(authenticateToken));
+
 // Security check for production environment
 function checkProductionSecurity() {
   if (process.env.NODE_ENV === 'production') {
