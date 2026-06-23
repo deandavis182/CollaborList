@@ -935,6 +935,7 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
     if (due_date !== undefined) {
       query += `, due_date = $${paramCount++}`;
       params.push(due_date);
+      query += `, reminder_sent = FALSE`;
     }
 
     query += ` WHERE id = $${paramCount} RETURNING *`;
@@ -1022,6 +1023,26 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
         }
       } catch (actErr) {
         console.error('Activity recording error (non-fatal):', actErr);
+      }
+
+      // Push (best-effort — never fail the response)
+      try {
+        const notificationService = require('./services/notificationService');
+        const { workspaceId, projectId } = await require('./services/activityService').projectContextForList(pool, targetListId);
+        if (workspaceId) {
+          if (updatedItem.assignee_id && updatedItem.assignee_id !== prev_assignee_id) {
+            await notificationService.notifyAssignment(pool, {
+              assigneeId: updatedItem.assignee_id,
+              actorId: req.user.id,
+              item: updatedItem,
+              projectId,
+              listId: targetListId,
+              workspaceId,
+            });
+          }
+        }
+      } catch (pushErr) {
+        console.error('Assignment push failed (non-fatal):', pushErr);
       }
     }
 
