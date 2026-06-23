@@ -164,10 +164,25 @@ round-trips + backend boots safely without VAPID keys. OUT OF SCOPE: offline wri
 **Pre-deploy (user):** `npx web-push generate-vapid-keys` → set VAPID_PUBLIC_KEY/PRIVATE_KEY/SUBJECT in prod .env
 (documented in .env.production.example + wired in all compose files); test push on wife's iPhone (installed PWA, iOS 16.4+).
 
-### ⬜ Phase 7 — Cut-line Extras (optional, last)
-**Plan:** TBW. File/photo attachments (needs storage infra) and automations/recurring tasks (rules
-engine). Sequenced last so they're the natural cut if time runs short before the wedding. Kept in
-scope by the user (not deferred), but lowest priority.
+### ✅ Phase 7 — Cut-line Extras — DONE (merged to main 2026-06-23). Both sub-phases shipped.
+- **7A — File/photo attachments** — ✅ DONE (merge `8c5abd4`). **Plan:** `2026-06-23-collaborlist-v2-phase7a-attachments.md`.
+  Local Docker volume (`attachments_data`→`/app/uploads`, UUID keys) + `attachments` table (migration 014, additive).
+  multer 2.x (10MB, image+pdf); upload/list/download(?token)/delete routes with item-permission checks; AttachmentList
+  (thumbnails/upload/delete) in the item drawer. 6 tasks, whole-branch review: Ready, no Critical. Live E2E passed
+  (caught+fixed a cross-router auth-interception bug: attachments mounted BEFORE the broad /api routers).
+  **Decision:** local volume not S3 — zero new cloud infra/cost, single-instance deploy (revisit before horizontal scale / if attachments go public).
+- **7B — Recurring tasks** — ✅ DONE (merge `6b464ca`). **Plan:** `2026-06-23-collaborlist-v2-phase7b-recurring.md`.
+  `recur_unit`/`recur_interval` on list_items (migration 015, additive). Completing a rule-bearing task spawns the next
+  occurrence (+interval, best-effort, spawn-once). RecurrencePicker in drawer + 🔁 chip on rows. 5 tasks, whole-branch
+  review: Ready, no Critical. Live E2E passed (weekly → complete → next occurrence at +7 days, no double-spawn).
+  **Scope:** automations = recurring tasks only (YAGNI — no general rules engine).
+  Minor follow-ups (non-blocking): recur_interval lacks backend range-clamp (spawn path neutralizes bad values); row chip needs a refetch after picker change.
+
+---
+
+## 🎉 V2 OVERHAUL COMPLETE — all 7 phases merged to main (local). Pending: user pushes/deploys manually.
+Pre-deploy checklist (user): pg_dump snapshot; set VAPID_* keys (push); decide Google OAuth vs email-only;
+back up the attachments_data volume alongside the DB; replace placeholder PWA icons if desired (current = inkscape-rendered brand mark).
 
 ---
 
