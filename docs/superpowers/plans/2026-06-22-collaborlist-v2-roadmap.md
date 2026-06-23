@@ -108,10 +108,17 @@ Permission: read comments/activity = list view; post/assign/status = list edit; 
   unit-covered via `itemActivityEvents` + boot. Extract `routes/items.js` + `services/itemService.js` in a future task
   (spec §9) to make them testable against real code. Minor follow-ups: malformed `due_date` → 500 not 400 (add 400 guard
   in the items extraction); comment sanitize caps 1000 chars/strips quotes (acceptable); self-assign records own activity (cosmetic).
-- **3B — Collaboration frontend** — ⬜ TODO (after 3A merged). **Plan:** `2026-06-22-collaborlist-v2-phase3b-collab-frontend.md`
-  (10 tasks; item list + detail drawer, assignee/due/status controls, comments + @mention autocomplete,
-  My Tasks landing, activity feed + unread dot, presence/typing; new shell can edit items but does NOT
-  replace the live app). Branch `v2-phase3-collab-frontend`. **Parity flip stays deferred to post-Phase-4.**
+- **3B — Collaboration frontend** — ✅ DONE (merged to main 2026-06-22, origin `b84c2e2`). **Plan:** `2026-06-22-collaborlist-v2-phase3b-collab-frontend.md`
+  (10 tasks; item list + detail drawer [assignee/due/status/notes], comments + @mention autocomplete,
+  My Tasks landing, activity feed + unread dot, presence/typing, list route + nav wiring. 585 tests; final
+  review ready-to-merge). New shell can create/edit/assign/comment on items at `/v2.html`; live app unchanged.
+- **3.5 — Usability pass** — ✅ DONE (merged with 3B, origin `b84c2e2`). Found during user testing of `/v2.html`:
+  the new shell had NO way to create a list (so you couldn't reach the add-task box) and Workspaces vs Projects
+  were visually indistinguishable. Added: `useCreateList/useRenameList/useDeleteList` hooks + ProjectView list
+  management (touch-accessible controls — wife is mobile-primary) + socket `projectLists` invalidation; and a
+  nested sidebar tree **Workspace ▸ Projects ▸ (active project's) Lists** (`ProjectListTree`) so the hierarchy is
+  legible and the path to tasks is obvious. 632 tests. The full create-task loop now works end-to-end in the shell.
+  **Parity flip STILL deferred to post-Phase-4** (new shell lacks the 4 views + drag/drop).
 
 ### ⬜ Phase 4 — Views
 Spec §2 (views table). **Plan:** TBW (consider splitting per view). Segmented-control lens switch;
