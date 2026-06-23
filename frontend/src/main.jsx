@@ -24,3 +24,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </Providers>
   </React.StrictMode>,
 )
+
+// Service worker registration — Task 9 will replace this inline call with
+// registerServiceWorker() from lib/push.js once the push helper is built.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((e) => console.warn('SW registration failed:', e))
+  })
+}
