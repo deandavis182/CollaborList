@@ -739,9 +739,10 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
   }
 
   try {
-    // Check edit permission through list
+    // Check edit permission through list; also capture prior assignee/completed for activity recording
     const permCheck = await pool.query(
-      `SELECT l.user_id, ls.permission, li.list_id
+      `SELECT l.user_id, ls.permission, li.list_id,
+              li.assignee_id AS prev_assignee_id, li.completed AS prev_completed
        FROM list_items li
        JOIN lists l ON li.list_id = l.id
        LEFT JOIN list_shares ls ON l.id = ls.list_id AND ls.user_id = $2
@@ -761,6 +762,8 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
     }
 
     const originalListId = permCheck.rows[0].list_id;
+    const prev_assignee_id = permCheck.rows[0].prev_assignee_id;
+    const prev_completed   = permCheck.rows[0].prev_completed;
     let targetListId = originalListId;
     let isCrossListMove = false;
 
@@ -934,6 +937,33 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
 
       updatedItem = result.rows[0];
       emitListUpdate(targetListId, 'item-updated', { listId: targetListId, item: updatedItem });
+
+      // Best-effort activity recording — never fail the item update if this throws
+      try {
+        const activitySvc = require('./services/activityService');
+        const events_catalog = require('./realtime/events');
+        const { workspaceId, projectId } = await activitySvc.projectContextForList(pool, targetListId);
+        if (workspaceId) {
+          const evts = activitySvc.itemActivityEvents(
+            { assignee_id: prev_assignee_id, completed: prev_completed },
+            updatedItem,
+            req.user.id
+          );
+          for (const e of evts) {
+            const row = await activitySvc.record(pool, {
+              workspaceId,
+              projectId,
+              actorId: req.user.id,
+              verb: e.verb,
+              target: e.target,
+              meta: e.meta,
+            });
+            emitWorkspaceUpdate(workspaceId, events_catalog.ACTIVITY_CREATED, row);
+          }
+        }
+      } catch (actErr) {
+        console.error('Activity recording error (non-fatal):', actErr);
+      }
     }
 
     res.json(updatedItem);
@@ -1060,6 +1090,9 @@ app.use('/api/projects', require('./routes/projects')(authenticateToken, sanitiz
 
 // Comments routes (V2 — items/:id/comments and comments/:id)
 app.use('/api', require('./routes/comments')(authenticateToken, sanitizeInput, { list: emitListUpdate, workspace: emitWorkspaceUpdate }));
+
+// Activity feed routes (V2)
+app.use('/api/activity', require('./routes/activity')(authenticateToken, sanitizeInput, { list: emitListUpdate, workspace: emitWorkspaceUpdate }));
 
 // Security check for production environment
 function checkProductionSecurity() {

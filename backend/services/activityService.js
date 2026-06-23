@@ -93,4 +93,44 @@ async function projectContextForList(pool, listId) {
   return r.rows[0];
 }
 
-module.exports = { record, listForWorkspace, unreadCount, markRead, projectContextForList };
+/**
+ * Pure helper: decide which activity events to record for a single item update.
+ *
+ * Normalises assignee_id to Number-or-null so that pg numbers ('5' vs 5) and
+ * null/undefined both compare correctly.
+ *
+ * @param {{ assignee_id, completed }} before  - item's prior state
+ * @param {{ id, assignee_id, completed }} after - item's updated state (full row)
+ * @param {number} actorId - user who made the change (currently unused in return value)
+ * @returns {Array<{ verb, target, meta }>}  zero or more events, ordered: assigned then completed
+ */
+function itemActivityEvents(before, after, actorId) {
+  const events = [];
+
+  // Normalise assignee_id: null/undefined → null, anything else → Number
+  const normalise = (v) => (v == null ? null : Number(v));
+  const prevAssignee = normalise(before.assignee_id);
+  const nextAssignee = normalise(after.assignee_id);
+
+  // Fire 'assigned' only when assignee_id changed AND the new value is non-null
+  if (nextAssignee !== prevAssignee && nextAssignee !== null) {
+    events.push({
+      verb: 'assigned',
+      target: { itemId: after.id },
+      meta: { assigneeId: nextAssignee },
+    });
+  }
+
+  // Fire 'completed' only on false→true transition
+  if (after.completed === true && before.completed !== true) {
+    events.push({
+      verb: 'completed',
+      target: { itemId: after.id },
+      meta: {},
+    });
+  }
+
+  return events;
+}
+
+module.exports = { record, listForWorkspace, unreadCount, markRead, projectContextForList, itemActivityEvents };
