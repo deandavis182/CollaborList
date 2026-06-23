@@ -12,6 +12,7 @@ vi.mock('../../../lib/api.js', () => ({
   useListItems: vi.fn(() => ({ data: [], isLoading: false })),
   useCreateItem: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useUpdateItem: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useUpdateAnyItem: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useWorkspaceActivity: vi.fn(() => ({ data: { items: [], unread: 0 } })),
   useItemComments: vi.fn(() => ({ data: [], isLoading: false })),
   useCreateComment: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
@@ -62,6 +63,13 @@ function resetStore() {
   })
 }
 
+// Clear localStorage view prefs between tests
+function clearViewPrefs() {
+  Object.keys(localStorage).forEach((k) => {
+    if (k.startsWith('collaborlist:viewpref:')) localStorage.removeItem(k)
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -69,6 +77,7 @@ describe('ListView', () => {
   beforeEach(() => {
     resetStore()
     vi.clearAllMocks()
+    clearViewPrefs()
     useWorkspaceMembers.mockReturnValue({ data: [], isLoading: false })
     useListItems.mockReturnValue({ data: [], isLoading: false })
   })
@@ -83,7 +92,12 @@ describe('ListView', () => {
     expect(screen.getByRole('heading')).toBeInTheDocument()
   })
 
-  it('renders ListItems (add-item-input is present)', () => {
+  it('renders ViewContainer (view-container testid is present)', () => {
+    renderAt()
+    expect(screen.getByTestId('view-container')).toBeInTheDocument()
+  })
+
+  it('renders the add-item input (showAddItem is passed to ViewContainer)', () => {
     renderAt()
     expect(screen.getByTestId('add-item-input')).toBeInTheDocument()
   })
@@ -103,7 +117,7 @@ describe('ListView', () => {
     expect(screen.getByText('Second item')).toBeInTheDocument()
   })
 
-  it('passes members to ListItems (shows assignee avatar when member is assigned)', () => {
+  it('passes members to ViewContainer (shows assignee avatar when member is assigned)', () => {
     useWorkspaceMembers.mockReturnValue({
       data: [{ user_id: 7, email: 'alice@example.com' }],
       isLoading: false,

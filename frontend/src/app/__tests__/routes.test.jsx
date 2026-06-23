@@ -37,9 +37,12 @@ vi.mock('../../lib/api.js', () => ({
   useListItems: vi.fn(() => ({ data: [], isLoading: false })),
   useCreateItem: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useUpdateItem: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useUpdateAnyItem: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useItemComments: vi.fn(() => ({ data: [], isLoading: false })),
   useCreateComment: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useDeleteComment: vi.fn(() => ({ mutate: vi.fn() })),
+  useAddItemTag: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useRemoveItemTag: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
 }))
 
 import { useWorkspaces, useProjects } from '../../lib/api.js'
@@ -333,7 +336,7 @@ describe('routes — list (/w/:workspaceId/p/:projectId/l/:listId)', () => {
     expect(screen.getByTestId('main-content')).toBeInTheDocument()
   })
 
-  it('renders the add-item input (ListItems is mounted)', () => {
+  it('renders the add-item input (ViewContainer is mounted with showAddItem)', () => {
     renderAt('/w/1/p/2/l/3')
     expect(screen.getByTestId('add-item-input')).toBeInTheDocument()
   })
