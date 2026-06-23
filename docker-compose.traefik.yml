@@ -71,6 +71,8 @@ services:
       - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
       - "traefik.http.services.backend.loadbalancer.server.port=3001"
     restart: always
+    volumes:
+      - attachments_data:/app/uploads
 
   frontend:
     build:
@@ -96,6 +98,7 @@ services:
 
 volumes:
   postgres_data:
+  attachments_data:
 
 networks:
   listapp-network:

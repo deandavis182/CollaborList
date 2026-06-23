@@ -26,6 +26,10 @@ vi.mock('../../../lib/api.js', () => ({
   useDeleteFieldDef: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useApplyFieldPreset: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useSetItemField: vi.fn(() => ({ mutate: vi.fn() })),
+  // Attachment hooks — needed because ItemDetailDrawer now mounts AttachmentList
+  useAttachments: vi.fn(() => ({ data: [], isLoading: false })),
+  useUploadAttachment: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useDeleteAttachment: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
 }))
 
 import { useWorkspaceMembers, useListItems } from '../../../lib/api.js'

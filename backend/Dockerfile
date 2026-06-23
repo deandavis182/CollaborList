@@ -7,6 +7,8 @@ RUN npm install --production
 
 COPY . .
 
+RUN mkdir -p /app/uploads
+
 EXPOSE 3001
 
 CMD ["node", "server.js"]
