@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { ListViewLens } from '../ListViewLens.jsx'
 
 // Minimal stub for ItemRow to isolate ListViewLens behaviour
@@ -66,14 +66,24 @@ describe('ListViewLens', () => {
 
     it('Active group contains incomplete items', () => {
       render(<ListViewLens items={ITEMS} groupBy="completion" />)
-      expect(screen.getByTestId('item-row-1')).toBeInTheDocument()
-      expect(screen.getByTestId('item-row-3')).toBeInTheDocument()
-      expect(screen.getByTestId('item-row-4')).toBeInTheDocument()
+      const activeSection = screen.getByTestId('groupsection-active')
+      const doneSection   = screen.getByTestId('groupsection-done')
+
+      expect(within(activeSection).getByTestId('item-row-1')).toBeInTheDocument()
+      expect(within(activeSection).getByTestId('item-row-3')).toBeInTheDocument()
+      expect(within(activeSection).getByTestId('item-row-4')).toBeInTheDocument()
+      expect(within(doneSection).queryByTestId('item-row-1')).toBeNull()
+      expect(within(doneSection).queryByTestId('item-row-3')).toBeNull()
+      expect(within(doneSection).queryByTestId('item-row-4')).toBeNull()
     })
 
     it('Done group contains completed items', () => {
       render(<ListViewLens items={ITEMS} groupBy="completion" />)
-      expect(screen.getByTestId('item-row-2')).toBeInTheDocument()
+      const doneSection   = screen.getByTestId('groupsection-done')
+      const activeSection = screen.getByTestId('groupsection-active')
+
+      expect(within(doneSection).getByTestId('item-row-2')).toBeInTheDocument()
+      expect(within(activeSection).queryByTestId('item-row-2')).toBeNull()
     })
 
     it('Active header shows count of incomplete items', () => {
@@ -103,8 +113,9 @@ describe('ListViewLens', () => {
 
     it('places null-status item under "No status" group', () => {
       render(<ListViewLens items={ITEMS} groupBy="status" />)
+      const noStatusSection = screen.getByTestId('groupsection-no-status')
       expect(screen.getByTestId('group-no-status')).toBeInTheDocument()
-      expect(screen.getByTestId('item-row-4')).toBeInTheDocument()
+      expect(within(noStatusSection).getByTestId('item-row-4')).toBeInTheDocument()
     })
 
     it('omits empty status groups', () => {
@@ -115,9 +126,24 @@ describe('ListViewLens', () => {
 
     it('assigns each item to its correct status group', () => {
       render(<ListViewLens items={ITEMS} groupBy="status" />)
-      expect(screen.getByTestId('item-row-1')).toBeInTheDocument() // To do
-      expect(screen.getByTestId('item-row-2')).toBeInTheDocument() // Done
-      expect(screen.getByTestId('item-row-3')).toBeInTheDocument() // Doing
+      const todoSection  = screen.getByTestId('groupsection-to-do')
+      const doingSection = screen.getByTestId('groupsection-doing')
+      const doneSection  = screen.getByTestId('groupsection-done')
+
+      // Item 1 → "To do"
+      expect(within(todoSection).getByTestId('item-row-1')).toBeInTheDocument()
+      expect(within(doingSection).queryByTestId('item-row-1')).toBeNull()
+      expect(within(doneSection).queryByTestId('item-row-1')).toBeNull()
+
+      // Item 2 → "Done"
+      expect(within(doneSection).getByTestId('item-row-2')).toBeInTheDocument()
+      expect(within(todoSection).queryByTestId('item-row-2')).toBeNull()
+      expect(within(doingSection).queryByTestId('item-row-2')).toBeNull()
+
+      // Item 3 → "Doing"
+      expect(within(doingSection).getByTestId('item-row-3')).toBeInTheDocument()
+      expect(within(todoSection).queryByTestId('item-row-3')).toBeNull()
+      expect(within(doneSection).queryByTestId('item-row-3')).toBeNull()
     })
   })
 
@@ -137,14 +163,24 @@ describe('ListViewLens', () => {
 
     it('Unassigned group contains items with null assignee_id', () => {
       render(<ListViewLens items={ITEMS} members={MEMBERS} groupBy="assignee" />)
-      expect(screen.getByTestId('item-row-2')).toBeInTheDocument() // null assignee
-      expect(screen.getByTestId('item-row-4')).toBeInTheDocument() // null assignee
+      const unassignedSection = screen.getByTestId('groupsection-unassigned')
+      const assignedSection   = screen.getByTestId('groupsection-10')
+
+      expect(within(unassignedSection).getByTestId('item-row-2')).toBeInTheDocument()
+      expect(within(unassignedSection).getByTestId('item-row-4')).toBeInTheDocument()
+      expect(within(assignedSection).queryByTestId('item-row-2')).toBeNull()
+      expect(within(assignedSection).queryByTestId('item-row-4')).toBeNull()
     })
 
     it('assigned group contains items with that assignee', () => {
       render(<ListViewLens items={ITEMS} members={MEMBERS} groupBy="assignee" />)
-      expect(screen.getByTestId('item-row-1')).toBeInTheDocument() // assignee 10
-      expect(screen.getByTestId('item-row-3')).toBeInTheDocument() // assignee 10
+      const assignedSection   = screen.getByTestId('groupsection-10')
+      const unassignedSection = screen.getByTestId('groupsection-unassigned')
+
+      expect(within(assignedSection).getByTestId('item-row-1')).toBeInTheDocument()
+      expect(within(assignedSection).getByTestId('item-row-3')).toBeInTheDocument()
+      expect(within(unassignedSection).queryByTestId('item-row-1')).toBeNull()
+      expect(within(unassignedSection).queryByTestId('item-row-3')).toBeNull()
     })
   })
 
@@ -160,12 +196,22 @@ describe('ListViewLens', () => {
 
     it('multi-tag item appears under each of its tags', () => {
       render(<ListViewLens items={ITEMS} groupBy="tag" />)
-      // Item 3 has tags ta (Frontend) and tc (Bug) → appears in both groups
-      // Since testids are not unique across groups, just check both group sections exist
-      const frontendGroup = screen.getByTestId('group-ta')
-      const bugGroup = screen.getByTestId('group-tc')
-      expect(frontendGroup).toBeInTheDocument()
-      expect(bugGroup).toBeInTheDocument()
+      // Item 3 has tags ta (Frontend) and tc (Bug) → must appear in BOTH group sections
+      const frontendSection = screen.getByTestId('groupsection-ta')
+      const bugSection      = screen.getByTestId('groupsection-tc')
+      const backendSection  = screen.getByTestId('groupsection-tb')
+
+      expect(within(frontendSection).getByTestId('item-row-3')).toBeInTheDocument()
+      expect(within(bugSection).getByTestId('item-row-3')).toBeInTheDocument()
+
+      // Item 1 is single-tagged Frontend-only — present in frontend, absent in bug
+      expect(within(frontendSection).getByTestId('item-row-1')).toBeInTheDocument()
+      expect(within(bugSection).queryByTestId('item-row-1')).toBeNull()
+
+      // Item 2 is single-tagged Backend-only — absent from frontend and bug groups
+      expect(within(backendSection).getByTestId('item-row-2')).toBeInTheDocument()
+      expect(within(frontendSection).queryByTestId('item-row-2')).toBeNull()
+      expect(within(bugSection).queryByTestId('item-row-2')).toBeNull()
     })
 
     it('renders an Untagged group for items with no tags', () => {
@@ -175,7 +221,16 @@ describe('ListViewLens', () => {
 
     it('untagged item is under Untagged group and not in tag groups', () => {
       render(<ListViewLens items={ITEMS} groupBy="tag" />)
-      expect(screen.getByTestId('group-untagged')).toBeInTheDocument()
+      const untaggedSection = screen.getByTestId('groupsection-untagged')
+      const frontendSection = screen.getByTestId('groupsection-ta')
+      const bugSection      = screen.getByTestId('groupsection-tc')
+      const backendSection  = screen.getByTestId('groupsection-tb')
+
+      // Item 4 has no tags → must appear in Untagged and nowhere else
+      expect(within(untaggedSection).getByTestId('item-row-4')).toBeInTheDocument()
+      expect(within(frontendSection).queryByTestId('item-row-4')).toBeNull()
+      expect(within(bugSection).queryByTestId('item-row-4')).toBeNull()
+      expect(within(backendSection).queryByTestId('item-row-4')).toBeNull()
     })
   })
 

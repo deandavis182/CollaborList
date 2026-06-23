@@ -168,7 +168,7 @@ function groupByTag(items) {
  */
 function GroupSection({ group, members, onToggleComplete, onOpen, isCollapsed, onToggleCollapse }) {
   return (
-    <div className="mb-2">
+    <div data-testid={`groupsection-${group.key}`} className="mb-2">
       <button
         type="button"
         data-testid={`group-${group.key}`}
