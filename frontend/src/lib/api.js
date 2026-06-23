@@ -962,6 +962,66 @@ export function useSetItemField(listId) {
 }
 
 // ---------------------------------------------------------------------------
+// Push notification hooks
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch the VAPID public key for push subscription.
+ * Key: ['vapidKey']; staleTime Infinity (key never changes at runtime).
+ */
+export function useVapidKey() {
+  return useQuery({
+    queryKey: ['vapidKey'],
+    queryFn: async () => (await apiClient.get('/push/vapid-public-key')).data.publicKey,
+    staleTime: Infinity,
+  })
+}
+
+/**
+ * Subscribe the current browser to push notifications.
+ * mutationFn receives a PushSubscription-shaped object { endpoint, keys }.
+ */
+export function usePushSubscribe() {
+  return useMutation({
+    mutationFn: (subscription) => apiClient.post('/push/subscribe', { subscription }),
+  })
+}
+
+/**
+ * Unsubscribe the current browser from push notifications.
+ * mutationFn receives the subscription endpoint string.
+ */
+export function usePushUnsubscribe() {
+  return useMutation({
+    mutationFn: (endpoint) => apiClient.post('/push/unsubscribe', { endpoint }),
+  })
+}
+
+/**
+ * Fetch the current user's notification preferences.
+ * Key: ['notificationPrefs'].
+ */
+export function useNotificationPrefs() {
+  return useQuery({
+    queryKey: ['notificationPrefs'],
+    queryFn: async () => (await apiClient.get('/notification-prefs')).data,
+  })
+}
+
+/**
+ * Update the current user's notification preferences.
+ * mutationFn receives a partial prefs object.
+ * onSuccess: writes the returned data directly into the ['notificationPrefs'] cache.
+ */
+export function useUpdateNotificationPrefs() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (partial) => apiClient.put('/notification-prefs', partial).then((r) => r.data),
+    onSuccess: (data) => qc.setQueryData(['notificationPrefs'], data),
+  })
+}
+
+// ---------------------------------------------------------------------------
 // Project hooks (continued)
 // ---------------------------------------------------------------------------
 

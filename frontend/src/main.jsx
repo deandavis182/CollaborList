@@ -16,6 +16,7 @@ import './index.css'
 
 import { Providers } from './app/providers.jsx'
 import { RouterApp } from './app/routes.jsx'
+import { registerServiceWorker } from './lib/push'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -25,10 +26,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>,
 )
 
-// Service worker registration — Task 9 will replace this inline call with
-// registerServiceWorker() from lib/push.js once the push helper is built.
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((e) => console.warn('SW registration failed:', e))
-  })
+  window.addEventListener('load', () => { registerServiceWorker() })
 }
