@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -15,7 +15,19 @@ vi.mock('../../lib/api.js', () => ({
   useWorkspaceActivity: vi.fn(() => ({ data: { items: [], unread: 0 } })),
 }))
 
+// ---------------------------------------------------------------------------
+// Mock lib/auth — control getUser and logout per test
+// ---------------------------------------------------------------------------
+vi.mock('../../lib/auth.js', () => ({
+  getUser: vi.fn(() => null),
+  logout: vi.fn(),
+  isAuthenticated: vi.fn(() => true),
+  getToken: vi.fn(() => 'mock-token'),
+  setAuth: vi.fn(),
+}))
+
 import { useWorkspaceActivity } from '../../lib/api.js'
+import { getUser, logout } from '../../lib/auth.js'
 import { useStore } from '../../lib/store.js'
 import { AppLayout } from '../AppLayout.jsx'
 
@@ -194,5 +206,55 @@ describe('AppLayout — activity unread dot', () => {
     render(<AppLayout><span /></AppLayout>, { wrapper: Wrapper })
 
     expect(screen.queryByTestId('tab-activity-unread-dot')).not.toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Tests — header user email + logout
+// ---------------------------------------------------------------------------
+
+describe('AppLayout — header user email and logout', () => {
+  beforeEach(resetStore)
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('shows the current user email in the header when logged in', () => {
+    getUser.mockReturnValue({ id: 1, email: 'alice@example.com' })
+
+    render(<AppLayout><span /></AppLayout>, { wrapper: Wrapper })
+
+    expect(screen.getByTestId('header-user-email')).toHaveTextContent('alice@example.com')
+  })
+
+  it('does not show the email element when no user is stored', () => {
+    getUser.mockReturnValue(null)
+
+    render(<AppLayout><span /></AppLayout>, { wrapper: Wrapper })
+
+    expect(screen.queryByTestId('header-user-email')).not.toBeInTheDocument()
+  })
+
+  it('renders a logout button in the header', () => {
+    getUser.mockReturnValue({ id: 1, email: 'alice@example.com' })
+
+    render(<AppLayout><span /></AppLayout>, { wrapper: Wrapper })
+
+    expect(screen.getByTestId('logout-btn')).toBeInTheDocument()
+  })
+
+  it('clicking logout calls logout() and navigates to /login', () => {
+    getUser.mockReturnValue({ id: 1, email: 'alice@example.com' })
+    const assignSpy = vi.spyOn(window, 'location', 'get').mockReturnValue({
+      ...window.location,
+      assign: vi.fn(),
+    })
+
+    render(<AppLayout><span /></AppLayout>, { wrapper: Wrapper })
+    fireEvent.click(screen.getByTestId('logout-btn'))
+
+    expect(logout).toHaveBeenCalledTimes(1)
+    assignSpy.mockRestore()
   })
 })

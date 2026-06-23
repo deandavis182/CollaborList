@@ -52,13 +52,14 @@ vi.mock('../../lib/api.js', () => ({
 // ---------------------------------------------------------------------------
 vi.mock('../../lib/auth.js', () => ({
   setAuth: vi.fn(),
-  getToken: vi.fn(() => null),
-  getUser: vi.fn(() => null),
+  getToken: vi.fn(() => 'mock-token'),
+  getUser: vi.fn(() => ({ id: 1, email: 'test@example.com' })),
   logout: vi.fn(),
-  isAuthenticated: vi.fn(() => false),
+  isAuthenticated: vi.fn(() => true),
 }))
 
 import { useWorkspaces, useProjects } from '../../lib/api.js'
+import { isAuthenticated } from '../../lib/auth.js'
 import { useStore } from '../../lib/store.js'
 import { AppRoutes } from '../routes.jsx'
 import { Providers } from '../providers.jsx'
@@ -383,5 +384,47 @@ describe('routes — login (/login)', () => {
     renderAt('/login')
     expect(screen.getByTestId('auth-email')).toBeInTheDocument()
     expect(screen.getByTestId('auth-password')).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Tests — RequireAuth guard behaviour in route tree
+// ---------------------------------------------------------------------------
+
+describe('routes — RequireAuth guard', () => {
+  beforeEach(() => {
+    resetStore()
+    useWorkspaces.mockReturnValue({ data: [], isLoading: false })
+    useProjects.mockReturnValue({ data: [], isLoading: false })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('redirects unauthenticated user from /my-tasks to login-view', () => {
+    isAuthenticated.mockReturnValue(false)
+    renderAt('/my-tasks')
+    expect(screen.getByTestId('login-view')).toBeInTheDocument()
+    expect(screen.queryByTestId('my-tasks-view')).not.toBeInTheDocument()
+  })
+
+  it('redirects unauthenticated user from / to login-view', () => {
+    isAuthenticated.mockReturnValue(false)
+    renderAt('/')
+    expect(screen.getByTestId('login-view')).toBeInTheDocument()
+    expect(screen.queryByTestId('main-content')).not.toBeInTheDocument()
+  })
+
+  it('renders my-tasks-view when authenticated', () => {
+    isAuthenticated.mockReturnValue(true)
+    renderAt('/my-tasks')
+    expect(screen.getByTestId('my-tasks-view')).toBeInTheDocument()
+  })
+
+  it('/login stays reachable even when unauthenticated', () => {
+    isAuthenticated.mockReturnValue(false)
+    renderAt('/login')
+    expect(screen.getByTestId('login-view')).toBeInTheDocument()
   })
 })

@@ -19,11 +19,14 @@ import { Sidebar } from './Sidebar.jsx'
 import { BottomTabBar } from './BottomTabBar.jsx'
 import { PresenceBar } from '../features/collab/PresenceBar.jsx'
 import { useWorkspaceActivity } from '../lib/api.js'
+import { getUser, logout } from '../lib/auth.js'
+import { Button } from '../ui/Button.jsx'
 
 export function AppLayout({ children }) {
   const currentWorkspaceId = useStore((s) => s.currentWorkspaceId)
   const navigate = useNavigate()
   const location = useLocation()
+  const currentUser = getUser()
 
   // Derive activeTab from the current path
   const path = location.pathname
@@ -59,9 +62,33 @@ export function AppLayout({ children }) {
       {/* ------------------------------------------------------------------ */}
       <header
         data-testid="app-header"
-        className="h-12 border-b border-border bg-surface flex items-center justify-end px-4 shrink-0"
+        className="h-12 border-b border-border bg-surface flex items-center justify-between px-4 shrink-0"
       >
+        {/* Left side — presence avatars */}
         <PresenceBar />
+
+        {/* Right side — current user email + logout */}
+        <div className="flex items-center gap-3">
+          {currentUser?.email && (
+            <span
+              data-testid="header-user-email"
+              className="text-sm text-text-muted truncate max-w-[200px]"
+            >
+              {currentUser.email}
+            </span>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            data-testid="logout-btn"
+            onClick={() => {
+              logout()
+              window.location.assign('/login')
+            }}
+          >
+            Log out
+          </Button>
+        </div>
       </header>
 
       {/* ------------------------------------------------------------------ */}

@@ -21,6 +21,7 @@ import { MyTasksView } from '../features/tasks/MyTasksView.jsx'
 import { ActivityFeed } from '../features/collab/ActivityFeed.jsx'
 import { ListView } from '../features/items/ListView.jsx'
 import { LoginView } from '../features/auth/LoginView.jsx'
+import { RequireAuth } from '../features/auth/RequireAuth.jsx'
 import { Sheet } from '../ui/Sheet.jsx'
 import { Button } from '../ui/Button.jsx'
 import { useStore } from '../lib/store.js'
@@ -314,7 +315,7 @@ export function AppRoutes() {
       {/* /login — outside AppLayout (no sidebar/header on the login screen) */}
       <Route path="login" element={<LoginView />} />
 
-      <Route element={<AppLayout />}>
+      <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
         <Route index element={<MyTasksView />} />
         <Route path="my-tasks" element={<MyTasksView />} />
         <Route path="w/:workspaceId" element={<WorkspaceView />} />
@@ -350,7 +351,7 @@ export function createAppRouter() {
     },
     {
       path: '/',
-      element: <AppLayout />,
+      element: <RequireAuth><AppLayout /></RequireAuth>,
       children: [
         { index: true, element: <MyTasksView /> },
         { path: 'my-tasks', element: <MyTasksView /> },
