@@ -199,6 +199,22 @@ const migrations = [
       UPDATE list_items SET status = CASE WHEN completed THEN 'Done' ELSE 'To do' END WHERE status IS NULL;
     `
   },
+  {
+    name: '014_create_attachments',
+    sql: `
+      CREATE TABLE IF NOT EXISTS attachments (
+        id SERIAL PRIMARY KEY,
+        item_id INTEGER NOT NULL REFERENCES list_items(id) ON DELETE CASCADE,
+        uploader_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        filename TEXT NOT NULL,
+        mime_type TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL,
+        storage_key TEXT NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_attachments_item ON attachments(item_id);
+    `
+  },
 ];
 
 async function runMigrations(pool = sharedPool) {
