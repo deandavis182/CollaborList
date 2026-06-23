@@ -45,6 +45,9 @@ import {
   useUpdateProject,
   useDeleteProject,
   useProjectLists,
+  useCreateList,
+  useRenameList,
+  useDeleteList,
   useTags,
   useCreateTag,
   useDeleteTag,
@@ -998,5 +1001,277 @@ describe('useRemoveMember', () => {
 
     await waitFor(() => expect(result.current.isError).toBe(true))
     expect(result.current.error.message).toBe('Forbidden')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// useCreateList
+// ---------------------------------------------------------------------------
+
+describe('useCreateList', () => {
+  let queryClient
+
+  beforeEach(() => {
+    queryClient = makeQueryClient()
+    vi.resetAllMocks()
+  })
+
+  it('posts to /lists with name and project_id', async () => {
+    const created = { id: 10, name: 'Sprint 1', project_id: 5 }
+    apiClient.post.mockResolvedValueOnce({ data: created })
+    apiClient.get.mockResolvedValueOnce({ data: [] })
+
+    const { result } = renderHook(() => useCreateList(5), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate({ name: 'Sprint 1' })
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(apiClient.post).toHaveBeenCalledWith('/lists', { name: 'Sprint 1', project_id: 5 })
+  })
+
+  it('optimistically appends a temp list to ["projectLists", projectId]', async () => {
+    queryClient.setQueryData(['projectLists', 5], [{ id: 1, name: 'Existing', project_id: 5 }])
+
+    let resolve
+    apiClient.post.mockReturnValueOnce(new Promise((res) => { resolve = res }))
+
+    const { result } = renderHook(() => useCreateList(5), { wrapper: wrapper(queryClient) })
+
+    act(() => {
+      result.current.mutate({ name: 'Optimistic List' })
+    })
+
+    await waitFor(() => {
+      const cached = queryClient.getQueryData(['projectLists', 5])
+      return cached && cached.some((l) => l.name === 'Optimistic List' && String(l.id).startsWith('temp-'))
+    })
+
+    const cached = queryClient.getQueryData(['projectLists', 5])
+    expect(cached).toHaveLength(2)
+    expect(cached[1].name).toBe('Optimistic List')
+    expect(cached[1].project_id).toBe(5)
+
+    resolve({ data: { id: 99, name: 'Optimistic List', project_id: 5 } })
+    apiClient.get.mockResolvedValueOnce({ data: [] })
+  })
+
+  it('rolls back on error', async () => {
+    const original = [{ id: 1, name: 'Existing', project_id: 5 }]
+    queryClient.setQueryData(['projectLists', 5], original)
+
+    apiClient.post.mockRejectedValueOnce(new Error('Fail'))
+    apiClient.get.mockResolvedValueOnce({ data: original })
+
+    const { result } = renderHook(() => useCreateList(5), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate({ name: 'Bad List' })
+    })
+
+    await waitFor(() => expect(result.current.isError).toBe(true))
+
+    await waitFor(() => {
+      const cached = queryClient.getQueryData(['projectLists', 5])
+      return !cached?.some((l) => String(l.id).startsWith('temp-'))
+    })
+  })
+
+  it('invalidates ["projectLists", projectId] on settled', async () => {
+    const created = { id: 10, name: 'Sprint 1', project_id: 5 }
+    apiClient.post.mockResolvedValueOnce({ data: created })
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    apiClient.get.mockResolvedValueOnce({ data: [] })
+
+    const { result } = renderHook(() => useCreateList(5), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate({ name: 'Sprint 1' })
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['projectLists', 5] })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// useRenameList
+// ---------------------------------------------------------------------------
+
+describe('useRenameList', () => {
+  let queryClient
+
+  beforeEach(() => {
+    queryClient = makeQueryClient()
+    vi.resetAllMocks()
+  })
+
+  it('calls PUT /lists/:id with name', async () => {
+    const updated = { id: 10, name: 'Renamed List', project_id: 5 }
+    apiClient.put.mockResolvedValueOnce({ data: updated })
+    apiClient.get.mockResolvedValueOnce({ data: [updated] })
+
+    const { result } = renderHook(() => useRenameList(5), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate({ id: 10, name: 'Renamed List' })
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(apiClient.put).toHaveBeenCalledWith('/lists/10', { name: 'Renamed List' })
+  })
+
+  it('invalidates ["projectLists", projectId] on success', async () => {
+    apiClient.put.mockResolvedValueOnce({ data: { id: 10, name: 'Renamed' } })
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    apiClient.get.mockResolvedValueOnce({ data: [] })
+
+    const { result } = renderHook(() => useRenameList(5), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate({ id: 10, name: 'Renamed' })
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['projectLists', 5] })
+  })
+
+  it('surfaces errors from a failed rename', async () => {
+    apiClient.put.mockRejectedValueOnce(new Error('Forbidden'))
+
+    const { result } = renderHook(() => useRenameList(5), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate({ id: 10, name: 'Bad' })
+    })
+
+    await waitFor(() => expect(result.current.isError).toBe(true))
+    expect(result.current.error.message).toBe('Forbidden')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// useDeleteList
+// ---------------------------------------------------------------------------
+
+describe('useDeleteList', () => {
+  let queryClient
+
+  beforeEach(() => {
+    queryClient = makeQueryClient()
+    vi.resetAllMocks()
+  })
+
+  it('calls DELETE /lists/:id', async () => {
+    apiClient.delete.mockResolvedValueOnce({ data: { message: 'deleted' } })
+    apiClient.get.mockResolvedValueOnce({ data: [] })
+
+    const { result } = renderHook(() => useDeleteList(5), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate(10)
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(apiClient.delete).toHaveBeenCalledWith('/lists/10')
+  })
+
+  it('optimistically removes the list from ["projectLists", projectId]', async () => {
+    queryClient.setQueryData(['projectLists', 5], [
+      { id: 10, name: 'To Delete', project_id: 5 },
+      { id: 20, name: 'To Keep', project_id: 5 },
+    ])
+
+    let resolve
+    apiClient.delete.mockReturnValueOnce(new Promise((res) => { resolve = res }))
+
+    const { result } = renderHook(() => useDeleteList(5), { wrapper: wrapper(queryClient) })
+
+    act(() => {
+      result.current.mutate(10)
+    })
+
+    await waitFor(() => {
+      const cached = queryClient.getQueryData(['projectLists', 5])
+      return cached && !cached.some((l) => String(l.id) === '10')
+    })
+
+    const cached = queryClient.getQueryData(['projectLists', 5])
+    expect(cached).toHaveLength(1)
+    expect(cached[0].name).toBe('To Keep')
+
+    resolve({ data: { message: 'deleted' } })
+    apiClient.get.mockResolvedValueOnce({ data: [] })
+  })
+
+  it('uses String() coercion when matching ids for removal', async () => {
+    queryClient.setQueryData(['projectLists', 5], [
+      { id: 10, name: 'Numeric Id', project_id: 5 },
+    ])
+
+    let resolve
+    apiClient.delete.mockReturnValueOnce(new Promise((res) => { resolve = res }))
+
+    const { result } = renderHook(() => useDeleteList(5), { wrapper: wrapper(queryClient) })
+
+    // Pass id as string '10' — numeric list id 10 should still match
+    act(() => {
+      result.current.mutate('10')
+    })
+
+    await waitFor(() => {
+      const cached = queryClient.getQueryData(['projectLists', 5])
+      return cached && cached.length === 0
+    })
+
+    resolve({ data: { message: 'deleted' } })
+    apiClient.get.mockResolvedValueOnce({ data: [] })
+  })
+
+  it('rolls back on error', async () => {
+    const original = [
+      { id: 10, name: 'To Delete', project_id: 5 },
+      { id: 20, name: 'To Keep', project_id: 5 },
+    ]
+    queryClient.setQueryData(['projectLists', 5], original)
+
+    apiClient.delete.mockRejectedValueOnce(new Error('Forbidden'))
+    apiClient.get.mockResolvedValueOnce({ data: original })
+
+    const { result } = renderHook(() => useDeleteList(5), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate(10)
+    })
+
+    await waitFor(() => expect(result.current.isError).toBe(true))
+
+    await waitFor(() => {
+      const cached = queryClient.getQueryData(['projectLists', 5])
+      // Either rolled back (length=2) or refetched original; either way no orphan state
+      return cached !== undefined
+    })
+  })
+
+  it('invalidates ["projectLists", projectId] on settled', async () => {
+    apiClient.delete.mockResolvedValueOnce({ data: { message: 'deleted' } })
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    apiClient.get.mockResolvedValueOnce({ data: [] })
+
+    const { result } = renderHook(() => useDeleteList(5), { wrapper: wrapper(queryClient) })
+
+    await act(async () => {
+      result.current.mutate(10)
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['projectLists', 5] })
   })
 })

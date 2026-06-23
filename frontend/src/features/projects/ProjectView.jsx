@@ -2,26 +2,216 @@
  * ProjectView — the main-area view rendered at /w/:workspaceId/p/:projectId.
  *
  * Reads :projectId from URL params, fetches lists via useProjectLists, and
- * renders them as clickable Cards that navigate to the list route.
+ * renders them as clickable Cards that navigate to the list route. Also
+ * exposes controls to create, rename, and delete lists within the project.
  */
 
+import { useState, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { Link } from 'react-router-dom'
-import { useProjectLists } from '../../lib/api.js'
+import { useProjectLists, useCreateList, useRenameList, useDeleteList } from '../../lib/api.js'
 import { Card } from '../../ui/Card.jsx'
+import { Button } from '../../ui/Button.jsx'
+
+// ---------------------------------------------------------------------------
+// RenameInput — inline rename control for a single list card
+// ---------------------------------------------------------------------------
+
+function RenameInput({ list, onCommit, onCancel }) {
+  const [value, setValue] = useState(list.name)
+  const inputRef = useRef(null)
+
+  function handleKeyDown(e) {
+    if (e.key === 'Enter') {
+      const trimmed = value.trim()
+      if (trimmed && trimmed !== list.name) {
+        onCommit(trimmed)
+      } else {
+        onCancel()
+      }
+    }
+    if (e.key === 'Escape') {
+      onCancel()
+    }
+  }
+
+  function handleBlur() {
+    const trimmed = value.trim()
+    if (trimmed && trimmed !== list.name) {
+      onCommit(trimmed)
+    } else {
+      onCancel()
+    }
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      autoFocus
+      className="w-full text-base font-medium text-text bg-surface border border-primary rounded px-1 focus:outline-none focus:ring-1 focus:ring-primary"
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onKeyDown={handleKeyDown}
+      onBlur={handleBlur}
+      data-testid={`rename-input-${list.id}`}
+      onClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+      }}
+    />
+  )
+}
+
+// ---------------------------------------------------------------------------
+// ListCard — a single list card with rename + delete controls
+// ---------------------------------------------------------------------------
+
+function ListCard({ list, workspaceId, projectId, renameList, deleteList }) {
+  const [renaming, setRenaming] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  function handleDeleteClick(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (confirmDelete) {
+      deleteList.mutate(list.id)
+      setConfirmDelete(false)
+    } else {
+      setConfirmDelete(true)
+    }
+  }
+
+  function handleRenameClick(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    setRenaming(true)
+    setConfirmDelete(false)
+  }
+
+  function handleRenameCommit(newName) {
+    renameList.mutate({ id: list.id, name: newName })
+    setRenaming(false)
+  }
+
+  function handleRenameCancel() {
+    setRenaming(false)
+  }
+
+  return (
+    <li key={list.id}>
+      <div className="relative group">
+        <Link to={`/w/${workspaceId}/p/${projectId}/l/${list.id}`}>
+          <Card className="p-4" data-testid={`list-card-${list.id}`}>
+            {renaming ? (
+              <RenameInput
+                list={list}
+                onCommit={handleRenameCommit}
+                onCancel={handleRenameCancel}
+              />
+            ) : (
+              <h2 className="text-base font-medium text-text truncate">{list.name}</h2>
+            )}
+            {list.item_count !== undefined && (
+              <p className="mt-1 text-sm text-text-muted">
+                {list.item_count} {list.item_count === 1 ? 'item' : 'items'}
+              </p>
+            )}
+          </Card>
+        </Link>
+
+        {/* Management controls rendered outside Link to avoid navigation */}
+        <div
+          className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation() }}
+        >
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleRenameClick}
+            data-testid={`rename-list-${list.id}`}
+            aria-label={`Rename ${list.name}`}
+          >
+            Rename
+          </Button>
+          <Button
+            variant={confirmDelete ? 'danger' : 'ghost'}
+            size="sm"
+            onClick={handleDeleteClick}
+            data-testid={`delete-list-${list.id}`}
+            aria-label={confirmDelete ? `Confirm delete ${list.name}` : `Delete ${list.name}`}
+          >
+            {confirmDelete ? 'Confirm' : 'Delete'}
+          </Button>
+        </div>
+      </div>
+    </li>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// NewListForm — inline create control
+// ---------------------------------------------------------------------------
+
+function NewListForm({ onCreate }) {
+  const [name, setName] = useState('')
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    const trimmed = name.trim()
+    if (!trimmed) return
+    onCreate(trimmed)
+    setName('')
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex gap-2 items-center">
+      <input
+        className="flex-1 text-sm text-text bg-surface border border-border rounded px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary"
+        placeholder="List name…"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        data-testid="new-list-input"
+      />
+      <Button
+        type="submit"
+        variant="primary"
+        size="sm"
+        disabled={!name.trim()}
+        data-testid="new-list-button"
+      >
+        + New list
+      </Button>
+    </form>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// ProjectView
+// ---------------------------------------------------------------------------
 
 export function ProjectView() {
   const { workspaceId, projectId } = useParams()
 
   const { data: lists = [], isLoading } = useProjectLists(projectId)
+  const createList = useCreateList(projectId)
+  const renameList = useRenameList(projectId)
+  const deleteList = useDeleteList(projectId)
+
+  function handleCreate(name) {
+    createList.mutate({ name })
+  }
 
   return (
     <div data-testid="project-view" className="p-8 max-w-3xl">
       <p data-testid="workspace-id-display" className="sr-only">Workspace: {workspaceId}</p>
       <p data-testid="project-id-display" className="sr-only">Project: {projectId}</p>
 
-      <div className="mb-6">
+      <div className="mb-6 flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold text-text">Project Lists</h1>
+      </div>
+
+      <div className="mb-6">
+        <NewListForm onCreate={handleCreate} />
       </div>
 
       {isLoading ? (
@@ -29,9 +219,9 @@ export function ProjectView() {
           Loading lists…
         </p>
       ) : lists.length === 0 ? (
-        <p data-testid="project-view-empty" className="text-sm text-text-muted">
-          No lists in this project yet.
-        </p>
+        <div data-testid="project-view-empty" className="text-sm text-text-muted">
+          <p>No lists yet. Create your first list to start adding tasks.</p>
+        </div>
       ) : (
         <ul
           role="list"
@@ -39,18 +229,14 @@ export function ProjectView() {
           className="grid gap-4 sm:grid-cols-2"
         >
           {lists.map((list) => (
-            <li key={list.id}>
-              <Link to={`/w/${workspaceId}/p/${projectId}/l/${list.id}`}>
-                <Card className="p-4" data-testid={`list-card-${list.id}`}>
-                  <h2 className="text-base font-medium text-text truncate">{list.name}</h2>
-                  {list.item_count !== undefined && (
-                    <p className="mt-1 text-sm text-text-muted">
-                      {list.item_count} {list.item_count === 1 ? 'item' : 'items'}
-                    </p>
-                  )}
-                </Card>
-              </Link>
-            </li>
+            <ListCard
+              key={list.id}
+              list={list}
+              workspaceId={workspaceId}
+              projectId={projectId}
+              renameList={renameList}
+              deleteList={deleteList}
+            />
           ))}
         </ul>
       )}

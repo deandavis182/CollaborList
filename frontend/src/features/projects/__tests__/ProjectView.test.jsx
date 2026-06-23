@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import React from 'react'
@@ -7,11 +7,17 @@ import React from 'react'
 // ---------------------------------------------------------------------------
 // Mock api before importing the component
 // ---------------------------------------------------------------------------
+
+const mutateMock = vi.fn()
+
 vi.mock('../../../lib/api.js', () => ({
   useProjectLists: vi.fn(),
+  useCreateList: vi.fn(),
+  useRenameList: vi.fn(),
+  useDeleteList: vi.fn(),
 }))
 
-import { useProjectLists } from '../../../lib/api.js'
+import { useProjectLists, useCreateList, useRenameList, useDeleteList } from '../../../lib/api.js'
 import { ProjectView } from '../ProjectView.jsx'
 
 // ---------------------------------------------------------------------------
@@ -42,6 +48,11 @@ function renderAt(projectId) {
 describe('ProjectView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Default stubs for mutation hooks — tests override as needed
+    mutateMock.mockReset()
+    useCreateList.mockReturnValue({ mutate: mutateMock })
+    useRenameList.mockReturnValue({ mutate: mutateMock })
+    useDeleteList.mockReturnValue({ mutate: mutateMock })
   })
 
   it('renders the project-view container', () => {
@@ -165,5 +176,215 @@ describe('ProjectView', () => {
     const hrefs = links.map((l) => l.getAttribute('href'))
     expect(hrefs).toContain('/w/ws-1/p/proj-1/l/l1')
     expect(hrefs).toContain('/w/ws-1/p/proj-1/l/l2')
+  })
+
+  // ---------------------------------------------------------------------------
+  // New list creation
+  // ---------------------------------------------------------------------------
+
+  it('renders the new-list input and button', () => {
+    useProjectLists.mockReturnValue({ data: [], isLoading: false })
+
+    renderAt('proj-1')
+
+    expect(screen.getByTestId('new-list-input')).toBeInTheDocument()
+    expect(screen.getByTestId('new-list-button')).toBeInTheDocument()
+  })
+
+  it('submitting the new-list form calls useCreateList.mutate with the name', () => {
+    useProjectLists.mockReturnValue({ data: [], isLoading: false })
+
+    const createMutate = vi.fn()
+    useCreateList.mockReturnValue({ mutate: createMutate })
+
+    renderAt('proj-1')
+
+    const input = screen.getByTestId('new-list-input')
+    fireEvent.change(input, { target: { value: 'My New List' } })
+    fireEvent.submit(input.closest('form'))
+
+    expect(createMutate).toHaveBeenCalledWith({ name: 'My New List' })
+  })
+
+  it('clears the input after submitting a new list name', () => {
+    useProjectLists.mockReturnValue({ data: [], isLoading: false })
+
+    const createMutate = vi.fn()
+    useCreateList.mockReturnValue({ mutate: createMutate })
+
+    renderAt('proj-1')
+
+    const input = screen.getByTestId('new-list-input')
+    fireEvent.change(input, { target: { value: 'Sprint 1' } })
+    fireEvent.submit(input.closest('form'))
+
+    expect(input.value).toBe('')
+  })
+
+  it('does not call mutate when the name is empty or whitespace', () => {
+    useProjectLists.mockReturnValue({ data: [], isLoading: false })
+
+    const createMutate = vi.fn()
+    useCreateList.mockReturnValue({ mutate: createMutate })
+
+    renderAt('proj-1')
+
+    const input = screen.getByTestId('new-list-input')
+    fireEvent.change(input, { target: { value: '   ' } })
+    fireEvent.submit(input.closest('form'))
+
+    expect(createMutate).not.toHaveBeenCalled()
+  })
+
+  // ---------------------------------------------------------------------------
+  // Empty state CTA
+  // ---------------------------------------------------------------------------
+
+  it('empty state includes the new-list create control', () => {
+    useProjectLists.mockReturnValue({ data: [], isLoading: false })
+
+    renderAt('proj-1')
+
+    expect(screen.getByTestId('project-view-empty')).toBeInTheDocument()
+    // The new-list input is always visible (not hidden in empty state)
+    expect(screen.getByTestId('new-list-input')).toBeInTheDocument()
+  })
+
+  it('empty state shows a friendly CTA message', () => {
+    useProjectLists.mockReturnValue({ data: [], isLoading: false })
+
+    renderAt('proj-1')
+
+    expect(screen.getByTestId('project-view-empty')).toHaveTextContent(/No lists yet/i)
+  })
+
+  // ---------------------------------------------------------------------------
+  // Per-list Delete control
+  // ---------------------------------------------------------------------------
+
+  it('renders a delete control for each list card', () => {
+    useProjectLists.mockReturnValue({
+      data: [
+        { id: 'l1', name: 'Guest List' },
+        { id: 'l2', name: 'Vendor List' },
+      ],
+      isLoading: false,
+    })
+
+    renderAt('proj-1')
+
+    expect(screen.getByTestId('delete-list-l1')).toBeInTheDocument()
+    expect(screen.getByTestId('delete-list-l2')).toBeInTheDocument()
+  })
+
+  it('clicking delete once shows a confirm state (two-step delete)', () => {
+    useProjectLists.mockReturnValue({
+      data: [{ id: 'l1', name: 'Guest List' }],
+      isLoading: false,
+    })
+
+    const deleteMutate = vi.fn()
+    useDeleteList.mockReturnValue({ mutate: deleteMutate })
+
+    renderAt('proj-1')
+
+    const deleteBtn = screen.getByTestId('delete-list-l1')
+    fireEvent.click(deleteBtn)
+
+    // After first click, should NOT have called mutate yet (two-step confirmation)
+    expect(deleteMutate).not.toHaveBeenCalled()
+    // A confirm state should appear
+    expect(deleteBtn).toHaveTextContent(/Confirm/i)
+  })
+
+  it('clicking confirm on delete calls useDeleteList.mutate with the list id', () => {
+    useProjectLists.mockReturnValue({
+      data: [{ id: 'l1', name: 'Guest List' }],
+      isLoading: false,
+    })
+
+    const deleteMutate = vi.fn()
+    useDeleteList.mockReturnValue({ mutate: deleteMutate })
+
+    renderAt('proj-1')
+
+    const deleteBtn = screen.getByTestId('delete-list-l1')
+    fireEvent.click(deleteBtn) // first click: show confirm
+    fireEvent.click(deleteBtn) // second click: confirm delete
+
+    expect(deleteMutate).toHaveBeenCalledWith('l1')
+  })
+
+  it('delete button click does not trigger link navigation', () => {
+    useProjectLists.mockReturnValue({
+      data: [{ id: 'l1', name: 'Guest List' }],
+      isLoading: false,
+    })
+
+    const deleteMutate = vi.fn()
+    useDeleteList.mockReturnValue({ mutate: deleteMutate })
+
+    renderAt('proj-1')
+
+    const deleteBtn = screen.getByTestId('delete-list-l1')
+
+    // Simulate click — the link should NOT have been followed.
+    // We verify by checking the click did not propagate to a navigation.
+    // In MemoryRouter, navigation would change the route. Since the test
+    // renders at the project route, the route must remain unchanged after click.
+    fireEvent.click(deleteBtn)
+
+    // The project-view should still be visible (not navigated away)
+    expect(screen.getByTestId('project-view')).toBeInTheDocument()
+  })
+
+  // ---------------------------------------------------------------------------
+  // Per-list Rename control
+  // ---------------------------------------------------------------------------
+
+  it('renders a rename control for each list card', () => {
+    useProjectLists.mockReturnValue({
+      data: [{ id: 'l1', name: 'Guest List' }],
+      isLoading: false,
+    })
+
+    renderAt('proj-1')
+
+    expect(screen.getByTestId('rename-list-l1')).toBeInTheDocument()
+  })
+
+  it('clicking rename reveals an inline input with the current name', () => {
+    useProjectLists.mockReturnValue({
+      data: [{ id: 'l1', name: 'Guest List' }],
+      isLoading: false,
+    })
+
+    renderAt('proj-1')
+
+    fireEvent.click(screen.getByTestId('rename-list-l1'))
+
+    const renameInput = screen.getByTestId('rename-input-l1')
+    expect(renameInput).toBeInTheDocument()
+    expect(renameInput.value).toBe('Guest List')
+  })
+
+  it('pressing Enter on the rename input commits via useRenameList.mutate', () => {
+    useProjectLists.mockReturnValue({
+      data: [{ id: 'l1', name: 'Guest List' }],
+      isLoading: false,
+    })
+
+    const renameMutate = vi.fn()
+    useRenameList.mockReturnValue({ mutate: renameMutate })
+
+    renderAt('proj-1')
+
+    fireEvent.click(screen.getByTestId('rename-list-l1'))
+
+    const renameInput = screen.getByTestId('rename-input-l1')
+    fireEvent.change(renameInput, { target: { value: 'VIP Guests' } })
+    fireEvent.keyDown(renameInput, { key: 'Enter' })
+
+    expect(renameMutate).toHaveBeenCalledWith({ id: 'l1', name: 'VIP Guests' })
   })
 })

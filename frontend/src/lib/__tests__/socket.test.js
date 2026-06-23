@@ -460,6 +460,90 @@ describe('registerSocketHandlers — typing events', () => {
 })
 
 // ---------------------------------------------------------------------------
+// registerSocketHandlers — list events: projectLists invalidation
+// ---------------------------------------------------------------------------
+
+describe('registerSocketHandlers — list events: projectLists invalidation', () => {
+  let socket, queryClient
+
+  beforeEach(() => {
+    socket = makeFakeSocket()
+    queryClient = makeMockQueryClient()
+    vi.clearAllMocks()
+  })
+
+  it('list-created with project_id invalidates ["projectLists", project_id]', () => {
+    registerSocketHandlers(socket, queryClient)
+    // payload IS the list row (has project_id directly)
+    socket.emit('list-created', { id: 10, name: 'New List', project_id: 5 })
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['projectLists', 5] })
+  })
+
+  it('list-created with only workspaceId (no project_id) invalidates all projectLists broadly', () => {
+    registerSocketHandlers(socket, queryClient)
+    socket.emit('list-created', { workspaceId: 1, list: { id: 10, name: 'New List' } })
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['projectLists'] })
+  })
+
+  it('list-created with list.project_id invalidates ["projectLists", project_id]', () => {
+    registerSocketHandlers(socket, queryClient)
+    socket.emit('list-created', { workspaceId: 1, list: { id: 10, project_id: 7 } })
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['projectLists', 7] })
+  })
+
+  it('list-updated with project_id invalidates ["projectLists", project_id]', () => {
+    registerSocketHandlers(socket, queryClient)
+    socket.emit('list-updated', { workspaceId: 3, list: { id: 7, name: 'Renamed', project_id: 9 } })
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['projectLists', 9] })
+  })
+
+  it('list-updated without project_id invalidates all projectLists broadly', () => {
+    registerSocketHandlers(socket, queryClient)
+    socket.emit('list-updated', { workspaceId: 3, list: { id: 7, name: 'Renamed' } })
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['projectLists'] })
+  })
+
+  it('list-deleted with only id (no project_id) invalidates ["projectLists"] broadly', () => {
+    registerSocketHandlers(socket, queryClient)
+    socket.emit('list-deleted', { id: 55 })
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['projectLists'] })
+  })
+
+  it('list-deleted with project_id invalidates ["projectLists", project_id]', () => {
+    registerSocketHandlers(socket, queryClient)
+    socket.emit('list-deleted', { id: 55, project_id: 4 })
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['projectLists', 4] })
+  })
+
+  it('list-created does not throw on null payload', () => {
+    registerSocketHandlers(socket, queryClient)
+    expect(() => socket.emit('list-created', null)).not.toThrow()
+  })
+
+  it('list-updated does not throw on null payload', () => {
+    registerSocketHandlers(socket, queryClient)
+    expect(() => socket.emit('list-updated', null)).not.toThrow()
+  })
+
+  it('list-deleted does not throw on null payload', () => {
+    registerSocketHandlers(socket, queryClient)
+    expect(() => socket.emit('list-deleted', null)).not.toThrow()
+  })
+
+  it('existing list-created ["projects"] invalidation still fires', () => {
+    registerSocketHandlers(socket, queryClient)
+    socket.emit('list-created', { workspaceId: 5, list: { id: 10, name: 'New List' } })
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['projects', 5] })
+  })
+
+  it('existing list-deleted ["lists", id] invalidation still fires', () => {
+    registerSocketHandlers(socket, queryClient)
+    socket.emit('list-deleted', { workspaceId: 2, id: 55 })
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['lists', 55] })
+  })
+})
+
+// ---------------------------------------------------------------------------
 // registerSocketHandlers — extended cleanup (collaboration events)
 // ---------------------------------------------------------------------------
 

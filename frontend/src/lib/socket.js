@@ -50,13 +50,25 @@ export function registerSocketHandlers(socket, queryClient) {
   // ------------------------------------------------------------------
 
   const onListCreated = (payload) => {
-    // payload: { workspaceId?, list } — invalidate broadly so any mounted
+    // payload: { workspaceId?, list } or the list row itself — invalidate broadly so any mounted
     // useProjects hook refetches.
     if (payload?.workspaceId) {
       queryClient.invalidateQueries({ queryKey: ['projects', payload.workspaceId] })
     } else {
       // Broadcast to all project queries when workspace context is unknown
       queryClient.invalidateQueries({ queryKey: ['projects'] })
+    }
+    // Also invalidate the per-project lists cache so ProjectView stays in sync.
+    // payload may be the list row directly (has project_id) or wrapped ({ list }).
+    try {
+      const projectId = payload?.project_id ?? payload?.list?.project_id
+      if (projectId != null) {
+        queryClient.invalidateQueries({ queryKey: ['projectLists', projectId] })
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['projectLists'] })
+      }
+    } catch (_e) {
+      // Guard against malformed payloads
     }
   }
 
@@ -70,6 +82,17 @@ export function registerSocketHandlers(socket, queryClient) {
     if (payload?.list?.id) {
       queryClient.invalidateQueries({ queryKey: ['lists', payload.list.id] })
     }
+    // Invalidate per-project lists cache.
+    try {
+      const projectId = payload?.project_id ?? payload?.list?.project_id
+      if (projectId != null) {
+        queryClient.invalidateQueries({ queryKey: ['projectLists', projectId] })
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['projectLists'] })
+      }
+    } catch (_e) {
+      // Guard against malformed payloads
+    }
   }
 
   const onListDeleted = (payload) => {
@@ -80,6 +103,18 @@ export function registerSocketHandlers(socket, queryClient) {
     }
     if (payload?.id) {
       queryClient.invalidateQueries({ queryKey: ['lists', payload.id] })
+    }
+    // Invalidate per-project lists cache.
+    // list-deleted payload may not carry project_id, so fall back to broad invalidation.
+    try {
+      const projectId = payload?.project_id ?? payload?.list?.project_id
+      if (projectId != null) {
+        queryClient.invalidateQueries({ queryKey: ['projectLists', projectId] })
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['projectLists'] })
+      }
+    } catch (_e) {
+      // Guard against malformed payloads
     }
   }
 

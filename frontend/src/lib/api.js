@@ -615,6 +615,125 @@ export function useMarkActivityRead(workspaceId) {
 }
 
 // ---------------------------------------------------------------------------
+// List management hooks
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a new list in a project with optimistic update.
+ * mutationFn receives { name }.
+ * Optimistic: appends a temp list to ['projectLists', projectId].
+ * Rollback on error; onSettled invalidates ['projectLists', projectId].
+ */
+export function useCreateList(projectId) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ name }) => {
+      const { data } = await apiClient.post('/lists', { name, project_id: projectId })
+      return data
+    },
+
+    onMutate: async ({ name }) => {
+      const queryKey = ['projectLists', projectId]
+
+      await queryClient.cancelQueries({ queryKey })
+
+      const previousLists = queryClient.getQueryData(queryKey)
+
+      const tempList = {
+        id: `temp-${Date.now()}`,
+        name,
+        project_id: projectId,
+        created_at: new Date().toISOString(),
+      }
+
+      queryClient.setQueryData(queryKey, (old) => {
+        const list = old ?? []
+        return [...list, tempList]
+      })
+
+      return { previousLists }
+    },
+
+    onError: (_err, _variables, context) => {
+      if (context?.previousLists !== undefined) {
+        queryClient.setQueryData(['projectLists', projectId], context.previousLists)
+      }
+    },
+
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['projectLists', projectId] })
+    },
+  })
+}
+
+/**
+ * Rename an existing list.
+ * mutationFn receives { id, name }.
+ * onSuccess/onSettled invalidates ['projectLists', projectId].
+ */
+export function useRenameList(projectId) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, name }) => {
+      const { data } = await apiClient.put(`/lists/${id}`, { name })
+      return data
+    },
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projectLists', projectId] })
+    },
+
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['projectLists', projectId] })
+    },
+  })
+}
+
+/**
+ * Delete a list by id with optimistic removal.
+ * mutationFn receives the list id.
+ * Optimistic: removes the list from ['projectLists', projectId] cache using String(id) coercion.
+ * Rollback on error; onSettled invalidates ['projectLists', projectId].
+ */
+export function useDeleteList(projectId) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id) => {
+      const { data } = await apiClient.delete(`/lists/${id}`)
+      return data
+    },
+
+    onMutate: async (id) => {
+      const queryKey = ['projectLists', projectId]
+
+      await queryClient.cancelQueries({ queryKey })
+
+      const previousLists = queryClient.getQueryData(queryKey)
+
+      queryClient.setQueryData(queryKey, (old) => {
+        if (!old) return old
+        return old.filter((list) => String(list.id) !== String(id))
+      })
+
+      return { previousLists }
+    },
+
+    onError: (_err, _variables, context) => {
+      if (context?.previousLists !== undefined) {
+        queryClient.setQueryData(['projectLists', projectId], context.previousLists)
+      }
+    },
+
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['projectLists', projectId] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
 // Project hooks (continued)
 // ---------------------------------------------------------------------------
 
