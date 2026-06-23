@@ -8,7 +8,9 @@ const { getItemAccess } = require('../services/itemAccess');
 const attachmentService = require('../services/attachmentService');
 const { UPLOAD_DIR } = require('../lib/uploads');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'development-secret';
+// Must match the fallback in server.js so the ?token= download path verifies
+// against the same secret the app signs/verifies with everywhere else.
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 module.exports = (authenticateToken, upload) => {
   const router = express.Router();
