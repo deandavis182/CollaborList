@@ -43,6 +43,7 @@ vi.mock('../../lib/api.js', () => ({
   useDeleteComment: vi.fn(() => ({ mutate: vi.fn() })),
   useAddItemTag: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useRemoveItemTag: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useProjectItems: vi.fn(() => ({ data: [], isLoading: false })),
 }))
 
 import { useWorkspaces, useProjects } from '../../lib/api.js'

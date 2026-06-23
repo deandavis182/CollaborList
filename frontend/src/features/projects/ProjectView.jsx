@@ -7,11 +7,22 @@
  */
 
 import { useState, useRef } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { Link } from 'react-router-dom'
-import { useProjectLists, useCreateList, useRenameList, useDeleteList } from '../../lib/api.js'
+import {
+  useProjectLists,
+  useCreateList,
+  useRenameList,
+  useDeleteList,
+  useProjectItems,
+  useProjects,
+  useWorkspaceMembers,
+} from '../../lib/api.js'
 import { Card } from '../../ui/Card.jsx'
 import { Button } from '../../ui/Button.jsx'
+import { SegmentedControl } from '../../ui/SegmentedControl.jsx'
+import { ViewContainer } from '../views/ViewContainer.jsx'
+import { useStore } from '../../lib/store.js'
 
 // ---------------------------------------------------------------------------
 // RenameInput — inline rename control for a single list card
@@ -198,19 +209,47 @@ function NewListForm({ onCreate }) {
 }
 
 // ---------------------------------------------------------------------------
+// MODE_OPTIONS — for the Lists | All items toggle
+// ---------------------------------------------------------------------------
+
+const MODE_OPTIONS = [
+  { value: 'lists',   label: 'Lists'     },
+  { value: 'rollup',  label: 'All items' },
+]
+
+// ---------------------------------------------------------------------------
 // ProjectView
 // ---------------------------------------------------------------------------
 
 export function ProjectView() {
   const { workspaceId, projectId } = useParams()
+  const navigate = useNavigate()
+  const openDetail = useStore((s) => s.openDetail)
 
+  // Mode toggle — 'lists' (default) | 'rollup'
+  const [mode, setMode] = useState('lists')
+
+  // Lists-mode data
   const { data: lists = [], isLoading } = useProjectLists(projectId)
   const createList = useCreateList(projectId)
   const renameList = useRenameList(projectId)
   const deleteList = useDeleteList(projectId)
 
+  // Roll-up data (always call hooks unconditionally)
+  const { data: projectItems = [] } = useProjectItems(projectId)
+  const { data: allProjects = [] }  = useProjects(workspaceId)
+  const { data: members = [] }      = useWorkspaceMembers(workspaceId)
+
+  const project     = allProjects.find((p) => String(p.id) === String(projectId))
+  const weddingDate = project?.wedding_date ? new Date(project.wedding_date) : undefined
+
   function handleCreate(name) {
     createList.mutate({ name })
+  }
+
+  function handleRollupOpenItem(item) {
+    openDetail(item.id)
+    navigate(`/w/${workspaceId}/p/${projectId}/l/${item.list_id}`)
   }
 
   return (
@@ -220,37 +259,60 @@ export function ProjectView() {
 
       <div className="mb-6 flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold text-text">Project Lists</h1>
+        <SegmentedControl
+          data-testid="project-mode"
+          options={MODE_OPTIONS}
+          value={mode}
+          onChange={setMode}
+        />
       </div>
 
-      <div className="mb-6">
-        <NewListForm onCreate={handleCreate} />
-      </div>
+      {mode === 'lists' && (
+        <>
+          <div className="mb-6">
+            <NewListForm onCreate={handleCreate} />
+          </div>
 
-      {isLoading ? (
-        <p data-testid="project-view-loading" className="text-sm text-text-muted">
-          Loading lists…
-        </p>
-      ) : lists.length === 0 ? (
-        <div data-testid="project-view-empty" className="text-sm text-text-muted">
-          <p>No lists yet. Create your first list to start adding tasks.</p>
-        </div>
-      ) : (
-        <ul
-          role="list"
-          data-testid="project-lists"
-          className="grid gap-4 sm:grid-cols-2"
-        >
-          {lists.map((list) => (
-            <ListCard
-              key={list.id}
-              list={list}
-              workspaceId={workspaceId}
-              projectId={projectId}
-              renameList={renameList}
-              deleteList={deleteList}
-            />
-          ))}
-        </ul>
+          {isLoading ? (
+            <p data-testid="project-view-loading" className="text-sm text-text-muted">
+              Loading lists…
+            </p>
+          ) : lists.length === 0 ? (
+            <div data-testid="project-view-empty" className="text-sm text-text-muted">
+              <p>No lists yet. Create your first list to start adding tasks.</p>
+            </div>
+          ) : (
+            <ul
+              role="list"
+              data-testid="project-lists"
+              className="grid gap-4 sm:grid-cols-2"
+            >
+              {lists.map((list) => (
+                <ListCard
+                  key={list.id}
+                  list={list}
+                  workspaceId={workspaceId}
+                  projectId={projectId}
+                  renameList={renameList}
+                  deleteList={deleteList}
+                />
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+
+      {mode === 'rollup' && (
+        <ViewContainer
+          items={projectItems}
+          workspaceId={workspaceId}
+          projectId={projectId}
+          scopeKey={`project:${projectId}`}
+          members={members}
+          weddingDate={weddingDate}
+          showAddItem={false}
+          onOpenItem={handleRollupOpenItem}
+        />
       )}
     </div>
   )

@@ -394,4 +394,42 @@ describe('ViewContainer', () => {
     // useCreateItem should have been called (with null), just not exposed
     expect(useCreateItem).toHaveBeenCalled()
   })
+
+  // ── onOpenItem override ───────────────────────────────────────────────────
+
+  it('when onOpenItem is NOT provided, opening an item sets store.detailItemId', () => {
+    render(<ViewContainer items={ITEMS} scopeKey="test" />, { wrapper: Wrapper })
+
+    expect(useStore.getState().detailItemId).toBeNull()
+    fireEvent.click(screen.getByTestId('mock-list-open'))
+
+    expect(useStore.getState().detailItemId).toBe(ITEMS[0].id)
+  })
+
+  it('when onOpenItem IS provided, opening an item calls onOpenItem with the full item object', () => {
+    const onOpenItemSpy = vi.fn()
+
+    render(
+      <ViewContainer items={ITEMS} scopeKey="test" onOpenItem={onOpenItemSpy} />,
+      { wrapper: Wrapper }
+    )
+
+    fireEvent.click(screen.getByTestId('mock-list-open'))
+
+    expect(onOpenItemSpy).toHaveBeenCalledWith(ITEMS[0])
+  })
+
+  it('when onOpenItem IS provided, opening an item does NOT set store.detailItemId', () => {
+    const onOpenItemSpy = vi.fn()
+
+    render(
+      <ViewContainer items={ITEMS} scopeKey="test" onOpenItem={onOpenItemSpy} />,
+      { wrapper: Wrapper }
+    )
+
+    fireEvent.click(screen.getByTestId('mock-list-open'))
+
+    // store.detailItemId must remain null — onOpenItem took over
+    expect(useStore.getState().detailItemId).toBeNull()
+  })
 })

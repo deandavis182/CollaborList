@@ -11,13 +11,39 @@ import React from 'react'
 const mutateMock = vi.fn()
 
 vi.mock('../../../lib/api.js', () => ({
-  useProjectLists: vi.fn(),
-  useCreateList: vi.fn(),
-  useRenameList: vi.fn(),
-  useDeleteList: vi.fn(),
+  useProjectLists:      vi.fn(),
+  useCreateList:        vi.fn(),
+  useRenameList:        vi.fn(),
+  useDeleteList:        vi.fn(),
+  useProjectItems:      vi.fn(),
+  useProjects:          vi.fn(),
+  useWorkspaceMembers:  vi.fn(),
 }))
 
-import { useProjectLists, useCreateList, useRenameList, useDeleteList } from '../../../lib/api.js'
+// ---------------------------------------------------------------------------
+// Mock ViewContainer — expose items count so we can assert roll-up feeds it
+// ---------------------------------------------------------------------------
+vi.mock('../../views/ViewContainer.jsx', () => ({
+  ViewContainer: (props) => (
+    <div
+      data-testid="view-container"
+      data-items-count={props.items ? props.items.length : 0}
+      data-scope-key={props.scopeKey}
+    >
+      view-container-mock
+    </div>
+  ),
+}))
+
+import {
+  useProjectLists,
+  useCreateList,
+  useRenameList,
+  useDeleteList,
+  useProjectItems,
+  useProjects,
+  useWorkspaceMembers,
+} from '../../../lib/api.js'
 import { ProjectView } from '../ProjectView.jsx'
 
 // ---------------------------------------------------------------------------
@@ -53,6 +79,10 @@ describe('ProjectView', () => {
     useCreateList.mockReturnValue({ mutate: mutateMock })
     useRenameList.mockReturnValue({ mutate: mutateMock })
     useDeleteList.mockReturnValue({ mutate: mutateMock })
+    // Default stubs for new roll-up hooks
+    useProjectItems.mockReturnValue({ data: [], isLoading: false })
+    useProjects.mockReturnValue({ data: [] })
+    useWorkspaceMembers.mockReturnValue({ data: [] })
   })
 
   it('renders the project-view container', () => {
@@ -442,5 +472,87 @@ describe('ProjectView', () => {
     fireEvent.keyDown(renameInput, { key: 'Enter' })
 
     expect(renameMutate).toHaveBeenCalledWith({ id: 'l1', name: 'VIP Guests' })
+  })
+
+  // ---------------------------------------------------------------------------
+  // Mode toggle — Lists | All items (roll-up)
+  // ---------------------------------------------------------------------------
+
+  it('renders a mode toggle with data-testid="project-mode"', () => {
+    useProjectLists.mockReturnValue({ data: [], isLoading: false })
+
+    renderAt('proj-1')
+
+    expect(screen.getByTestId('project-mode')).toBeInTheDocument()
+  })
+
+  it('defaults to Lists mode showing the list management UI', () => {
+    useProjectLists.mockReturnValue({ data: [], isLoading: false })
+
+    renderAt('proj-1')
+
+    // New-list control visible = Lists mode
+    expect(screen.getByTestId('new-list-input')).toBeInTheDocument()
+    // ViewContainer should NOT be mounted in Lists mode
+    expect(screen.queryByTestId('view-container')).not.toBeInTheDocument()
+  })
+
+  it('switching to "All items" renders ViewContainer (roll-up) instead of list cards', () => {
+    useProjectLists.mockReturnValue({ data: [], isLoading: false })
+    useProjectItems.mockReturnValue({ data: [
+      { id: 10, list_id: 'l1', text: 'Alpha', completed: false },
+    ], isLoading: false })
+
+    renderAt('proj-1')
+
+    fireEvent.click(screen.getByRole('button', { name: /all items/i }))
+
+    expect(screen.getByTestId('view-container')).toBeInTheDocument()
+    // Lists UI should be hidden
+    expect(screen.queryByTestId('new-list-input')).not.toBeInTheDocument()
+  })
+
+  it('roll-up feeds useProjectItems data into ViewContainer', () => {
+    useProjectLists.mockReturnValue({ data: [], isLoading: false })
+    const projectItems = [
+      { id: 10, list_id: 'l1', text: 'Alpha', completed: false },
+      { id: 11, list_id: 'l2', text: 'Beta',  completed: true  },
+    ]
+    useProjectItems.mockReturnValue({ data: projectItems, isLoading: false })
+
+    renderAt('proj-1')
+
+    fireEvent.click(screen.getByRole('button', { name: /all items/i }))
+
+    const vc = screen.getByTestId('view-container')
+    expect(vc.getAttribute('data-items-count')).toBe('2')
+  })
+
+  it('roll-up ViewContainer receives a scopeKey prefixed with "project:"', () => {
+    useProjectLists.mockReturnValue({ data: [], isLoading: false })
+    useProjectItems.mockReturnValue({ data: [], isLoading: false })
+
+    renderAt('proj-1')
+
+    fireEvent.click(screen.getByRole('button', { name: /all items/i }))
+
+    const vc = screen.getByTestId('view-container')
+    expect(vc.getAttribute('data-scope-key')).toBe('project:proj-1')
+  })
+
+  it('switching back to "Lists" from roll-up hides ViewContainer and shows list UI', () => {
+    useProjectLists.mockReturnValue({ data: [{ id: 'l1', name: 'Guest List' }], isLoading: false })
+    useProjectItems.mockReturnValue({ data: [], isLoading: false })
+
+    renderAt('proj-1')
+
+    // Go to roll-up
+    fireEvent.click(screen.getByRole('button', { name: /all items/i }))
+    expect(screen.getByTestId('view-container')).toBeInTheDocument()
+
+    // Go back to Lists
+    fireEvent.click(screen.getByRole('button', { name: /^lists$/i }))
+    expect(screen.queryByTestId('view-container')).not.toBeInTheDocument()
+    expect(screen.getByTestId('new-list-input')).toBeInTheDocument()
   })
 })

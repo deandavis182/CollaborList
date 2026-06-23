@@ -41,6 +41,7 @@ export function ViewContainer({
   weddingDate,
   members = [],
   showAddItem = false,
+  onOpenItem,
 }) {
   // ── View preference (persisted per scope) ──────────────────────────────────
   const { view, setView, groupBy, setGroupBy } = useViewPref(scopeKey)
@@ -75,7 +76,12 @@ export function ViewContainer({
   }
 
   function onOpen(id) {
-    openDetail(id)
+    const item = items.find((it) => String(it.id) === String(id))
+    if (onOpenItem && item) {
+      onOpenItem(item)
+    } else {
+      openDetail(id)
+    }
   }
 
   function onAddItem(text) {
