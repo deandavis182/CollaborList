@@ -25,6 +25,7 @@ vi.mock('../../../lib/api.js', () => ({
   useCreateFieldDef: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useDeleteFieldDef: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useApplyFieldPreset: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useSetItemField: vi.fn(() => ({ mutate: vi.fn() })),
 }))
 
 import { useWorkspaceMembers, useListItems } from '../../../lib/api.js'
