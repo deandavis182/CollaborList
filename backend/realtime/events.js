@@ -8,4 +8,5 @@ module.exports = Object.freeze({
   ITEM_CREATED: 'item-created',
   ITEM_UPDATED: 'item-updated',
   ITEM_DELETED: 'item-deleted',
+  FIELD_UPDATED: 'field-updated',
 });

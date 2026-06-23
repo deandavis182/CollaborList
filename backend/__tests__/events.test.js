@@ -13,6 +13,7 @@ describe('realtime/events catalog', () => {
     expect(events.ITEM_CREATED).toBe('item-created');
     expect(events.ITEM_UPDATED).toBe('item-updated');
     expect(events.ITEM_DELETED).toBe('item-deleted');
+    expect(events.FIELD_UPDATED).toBe('field-updated');
   });
 
   test('object is frozen (immutable catalog)', () => {
@@ -21,11 +22,12 @@ describe('realtime/events catalog', () => {
 
   test('no extra unexpected keys are exported', () => {
     const keys = Object.keys(events);
-    expect(keys).toHaveLength(8);
+    expect(keys).toHaveLength(9);
     expect(keys.sort()).toEqual([
       'ACTIVITY_CREATED',
       'COMMENT_CREATED',
       'COMMENT_DELETED',
+      'FIELD_UPDATED',
       'ITEM_CREATED',
       'ITEM_DELETED',
       'ITEM_UPDATED',
