@@ -13,6 +13,19 @@ vi.mock('../../lib/api.js', () => ({
   useProjects: vi.fn(() => ({ data: [], isLoading: false })),
   useCreateProject: vi.fn(() => ({ mutate: vi.fn(), isPending: false, isError: false, error: null })),
   useWorkspaceActivity: vi.fn(() => ({ data: { items: [], unread: 0 } })),
+  useVapidKey: vi.fn(() => ({ data: null })),
+  useNotificationPrefs: vi.fn(() => ({ data: null })),
+  useUpdateNotificationPrefs: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+}))
+
+// ---------------------------------------------------------------------------
+// Mock lib/push — prevent real browser API access in jsdom
+// ---------------------------------------------------------------------------
+vi.mock('../../lib/push.js', () => ({
+  pushSupported: vi.fn(() => false),
+  getPermission: vi.fn(() => 'default'),
+  subscribeToPush: vi.fn(),
+  unsubscribeFromPush: vi.fn(),
 }))
 
 // ---------------------------------------------------------------------------
