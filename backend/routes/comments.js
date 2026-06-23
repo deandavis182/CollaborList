@@ -53,11 +53,15 @@ module.exports = (authenticateToken, sanitize, emit) => {
         body,
       });
 
-      emit.list(access.listId, events.COMMENT_CREATED, {
-        listId:  access.listId,
-        itemId:  Number(req.params.id),
-        comment,
-      });
+      try {
+        emit.list(access.listId, events.COMMENT_CREATED, {
+          listId:  access.listId,
+          itemId:  Number(req.params.id),
+          comment,
+        });
+      } catch (emitErr) {
+        console.error('emit.list COMMENT_CREATED failed (non-fatal):', emitErr);
+      }
 
       // Activity + mention recording (best-effort — must not break the response)
       try {
@@ -127,11 +131,13 @@ module.exports = (authenticateToken, sanitize, emit) => {
 
       await commentService.remove(pool, req.params.id);
 
-      emit.list(access.listId, events.COMMENT_DELETED, {
-        listId:    access.listId,
-        itemId:    owner.item_id,
-        commentId: Number(req.params.id),
-      });
+      if (access.listId) {
+        emit.list(access.listId, events.COMMENT_DELETED, {
+          listId:    access.listId,
+          itemId:    owner.item_id,
+          commentId: Number(req.params.id),
+        });
+      }
 
       res.json({ success: true });
     } catch (e) {

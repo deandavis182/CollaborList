@@ -9,6 +9,7 @@ const request = require('supertest');
 const jwt = require('jsonwebtoken');
 
 const makeCommentsRouter = require('../routes/comments');
+const events = require('../realtime/events');
 
 // Unique email prefixes to avoid cross-suite collisions
 const OWNER  = 'c5-owner@example.test';
@@ -229,7 +230,7 @@ describe('Comments router (real DB)', () => {
       expect(emit.list).toHaveBeenCalledTimes(1);
       const [calledListId, eventName] = emit.list.mock.calls[0];
       expect(calledListId).toBe(listId);
-      expect(eventName).toBe('comment-created');
+      expect(eventName).toBe(events.COMMENT_CREATED);
     });
   });
 
@@ -295,7 +296,7 @@ describe('Comments router (real DB)', () => {
       expect(emit.list).toHaveBeenCalledTimes(1);
       const [calledListId, eventName, payload] = emit.list.mock.calls[0];
       expect(calledListId).toBe(listId);
-      expect(eventName).toBe('comment-deleted');
+      expect(eventName).toBe(events.COMMENT_DELETED);
       expect(payload.commentId).toBe(commentByOwner.id);
     });
   });
@@ -391,7 +392,7 @@ describe('Comments router (real DB)', () => {
       expect(emit.workspace).toHaveBeenCalled();
       const [calledWsId, eventName] = emit.workspace.mock.calls[0];
       expect(calledWsId).toBe(wsId);
-      expect(eventName).toBe('activity-created');
+      expect(eventName).toBe(events.ACTIVITY_CREATED);
     });
   });
 });
