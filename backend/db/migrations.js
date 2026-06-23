@@ -215,6 +215,13 @@ const migrations = [
       CREATE INDEX IF NOT EXISTS idx_attachments_item ON attachments(item_id);
     `
   },
+  {
+    name: '015_add_recurrence_columns',
+    sql: `
+      ALTER TABLE list_items ADD COLUMN IF NOT EXISTS recur_unit VARCHAR(10);
+      ALTER TABLE list_items ADD COLUMN IF NOT EXISTS recur_interval INTEGER;
+    `
+  },
 ];
 
 async function runMigrations(pool = sharedPool) {
