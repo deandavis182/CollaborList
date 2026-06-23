@@ -1274,5 +1274,10 @@ initializeDatabase().then(() => {
   server.listen(PORT, () => {
     console.log(`Server with auth and real-time updates is running on port ${PORT}`);
     console.log(`Security status: ${GOOGLE_CLIENT_ID && !GOOGLE_CLIENT_ID.includes('your-') ? 'Google OAuth enabled (signup disabled)' : 'Traditional auth enabled'}`);
+    // Due-date reminder sweep (in-process; no-ops if VAPID keys absent). Guarded for tests.
+    if (process.env.NODE_ENV !== 'test') {
+      try { require('./jobs/reminders').startReminderJob(pool, {}); }
+      catch (e) { console.error('Failed to start reminder job (non-fatal):', e); }
+    }
   });
 });
