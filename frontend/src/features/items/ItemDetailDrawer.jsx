@@ -19,6 +19,7 @@ import { DueDateField } from './DueDateField.jsx'
 import { CommentThread } from '../comments/CommentThread.jsx'
 import { TagPicker } from '../tags/TagPicker.jsx'
 import { ItemFieldInputs } from '../fields/ItemFieldInputs.jsx'
+import { AttachmentList } from '../attachments/AttachmentList.jsx'
 
 export function ItemDetailDrawer({ listId, workspaceId }) {
   const detailItemId = useStore((s) => s.detailItemId)
@@ -150,7 +151,14 @@ export function ItemDetailDrawer({ listId, workspaceId }) {
           <ItemFieldInputs item={item} listId={listId} workspaceId={workspaceId} />
         )}
 
-        {/* 7. Notes — debounced 500ms */}
+        {/* 7. Attachments */}
+        {item && (
+          <Field label="Attachments">
+            <AttachmentList itemId={item.id} />
+          </Field>
+        )}
+
+        {/* 8. Notes — debounced 500ms */}
         <Field label="Notes" htmlFor="item-detail-notes">
           <textarea
             id="item-detail-notes"

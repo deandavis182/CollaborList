@@ -18,9 +18,12 @@ vi.mock('../../../lib/api.js', () => ({
   useRemoveItemTag: vi.fn(),
   useFieldDefs: vi.fn(),
   useSetItemField: vi.fn(),
+  useAttachments: vi.fn(),
+  useUploadAttachment: vi.fn(),
+  useDeleteAttachment: vi.fn(),
 }))
 
-import { useListItems, useUpdateItem, useWorkspaceMembers, useItemComments, useCreateComment, useDeleteComment, useTags, useAddItemTag, useRemoveItemTag, useFieldDefs, useSetItemField } from '../../../lib/api.js'
+import { useListItems, useUpdateItem, useWorkspaceMembers, useItemComments, useCreateComment, useDeleteComment, useTags, useAddItemTag, useRemoveItemTag, useFieldDefs, useSetItemField, useAttachments, useUploadAttachment, useDeleteAttachment } from '../../../lib/api.js'
 import { useStore } from '../../../lib/store.js'
 import { ItemDetailDrawer } from '../ItemDetailDrawer.jsx'
 
@@ -87,6 +90,9 @@ describe('ItemDetailDrawer', () => {
     useRemoveItemTag.mockReturnValue({ mutate: vi.fn(), isPending: false })
     useFieldDefs.mockReturnValue({ data: [], isLoading: false })
     useSetItemField.mockReturnValue({ mutate: vi.fn() })
+    useAttachments.mockReturnValue({ data: [], isLoading: false })
+    useUploadAttachment.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useDeleteAttachment.mockReturnValue({ mutate: vi.fn(), isPending: false })
   })
 
   afterEach(() => {

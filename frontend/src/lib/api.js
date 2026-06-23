@@ -962,6 +962,55 @@ export function useSetItemField(listId) {
 }
 
 // ---------------------------------------------------------------------------
+// Attachment hooks
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch all attachments for an item.
+ * Only enabled when itemId is truthy.
+ * Key: ['attachments', itemId]
+ */
+export function useAttachments(itemId) {
+  return useQuery({
+    queryKey: ['attachments', itemId],
+    queryFn: async () => (await apiClient.get(`/items/${itemId}/attachments`)).data,
+    enabled: Boolean(itemId),
+  })
+}
+
+/**
+ * Upload a file attachment to an item.
+ * mutationFn receives a File object.
+ * Builds FormData and POSTs to /items/:itemId/attachments.
+ * Do NOT set Content-Type — axios sets the multipart boundary automatically.
+ * onSettled invalidates ['attachments', itemId].
+ */
+export function useUploadAttachment(itemId) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (file) => {
+      const fd = new FormData()
+      fd.append('file', file)
+      return apiClient.post(`/items/${itemId}/attachments`, fd)
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['attachments', itemId] }),
+  })
+}
+
+/**
+ * Delete an attachment by id.
+ * mutationFn receives the attachmentId.
+ * onSettled invalidates ['attachments', itemId].
+ */
+export function useDeleteAttachment(itemId) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (attachmentId) => apiClient.delete(`/attachments/${attachmentId}`),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['attachments', itemId] }),
+  })
+}
+
+// ---------------------------------------------------------------------------
 // Push notification hooks
 // ---------------------------------------------------------------------------
 
