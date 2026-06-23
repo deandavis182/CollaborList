@@ -16,6 +16,8 @@
  * the YYYY-MM-DD of the Monday that starts the week containing that date.
  */
 
+import { parseLocalDay, formatDay } from '../../lib/dates.js'
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
@@ -54,8 +56,8 @@ function weekKey(date) {
  */
 function itemWeekKey(due_date) {
   if (!due_date) return null
-  const d = due_date instanceof Date ? due_date : new Date(due_date)
-  if (isNaN(d.getTime())) return null
+  const d = parseLocalDay(due_date)
+  if (!d) return null
   return weekKey(d)
 }
 
@@ -101,14 +103,15 @@ export function TimelineView({
   // Sort items within each bucket by due_date ascending
   for (const [, bucket] of bucketMap) {
     bucket.sort((a, b) => {
-      const da = a.due_date instanceof Date ? a.due_date : new Date(a.due_date)
-      const db = b.due_date instanceof Date ? b.due_date : new Date(b.due_date)
-      return da.getTime() - db.getTime()
+      const da = parseLocalDay(a.due_date)
+      const db = parseLocalDay(b.due_date)
+      return (da?.getTime() ?? 0) - (db?.getTime() ?? 0)
     })
   }
 
   // Ensure wedding week exists (even if empty)
-  const weddingWeekKey = weddingDate instanceof Date ? weekKey(weddingDate) : null
+  const parsedWedding = parseLocalDay(weddingDate)
+  const weddingWeekKey = parsedWedding ? weekKey(parsedWedding) : null
   if (weddingWeekKey && !bucketMap.has(weddingWeekKey)) {
     bucketMap.set(weddingWeekKey, [])
   }
@@ -193,7 +196,7 @@ export function TimelineView({
                 🎉{' '}
                 <span>
                   Wedding Day —{' '}
-                  {weddingDate.toLocaleDateString(undefined, {
+                  {formatDay(weddingDate, {
                     month: 'short',
                     day: 'numeric',
                   })}
@@ -203,11 +206,7 @@ export function TimelineView({
 
             {/* Items in this bucket */}
             {bucketItems.map((item) => {
-              const itemDate =
-                item.due_date instanceof Date
-                  ? item.due_date
-                  : new Date(item.due_date)
-              const dateLabel = itemDate.toLocaleDateString(undefined, {
+              const dateLabel = formatDay(item.due_date, {
                 month: 'short',
                 day: 'numeric',
               })

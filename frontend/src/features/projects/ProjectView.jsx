@@ -241,7 +241,7 @@ export function ProjectView() {
   const { data: members = [] }      = useWorkspaceMembers(workspaceId)
 
   const project     = allProjects.find((p) => String(p.id) === String(projectId))
-  const weddingDate = project?.wedding_date ? new Date(project.wedding_date) : undefined
+  const weddingDate = project?.wedding_date ?? undefined
 
   function handleCreate(name) {
     createList.mutate({ name })

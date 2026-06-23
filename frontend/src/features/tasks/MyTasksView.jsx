@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom'
 import { useMyTasks } from '../../lib/api.js'
 import { Chip } from '../../ui/Chip.jsx'
 import { groupTasksByDue } from './groupTasks.js'
+import { formatDay } from '../../lib/dates.js'
 
 // ---------------------------------------------------------------------------
 // Status → Chip color map (mirrors ItemRow)
@@ -60,7 +61,7 @@ function TaskRowInner({ task }) {
       <div className="flex items-center gap-1.5 shrink-0">
         {task.due_date && (
           <span className="text-xs text-text-muted">
-            {new Date(task.due_date).toLocaleDateString()}
+            {formatDay(task.due_date)}
           </span>
         )}
         {task.status && (

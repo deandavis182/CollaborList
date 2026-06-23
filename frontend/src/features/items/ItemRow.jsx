@@ -11,6 +11,7 @@
 
 import { Chip } from '../../ui/Chip.jsx'
 import { Avatar } from '../../ui/Avatar.jsx'
+import { formatDay, parseLocalDay } from '../../lib/dates.js'
 
 /** Map a tag hex color to a Chip color token. */
 const TAG_COLOR_MAP = {
@@ -36,7 +37,7 @@ export function ItemRow({ item, depth = 0, members = [], onToggleComplete, onOpe
   const isOverdue =
     item.due_date &&
     !item.completed &&
-    new Date(item.due_date) < new Date()
+    parseLocalDay(item.due_date) < new Date()
 
   // Resolve assignee display name
   const assigneeName = (() => {
@@ -105,7 +106,7 @@ export function ItemRow({ item, depth = 0, members = [], onToggleComplete, onOpe
       {/* Due date chip */}
       {item.due_date && (
         <Chip color={isOverdue ? 'danger' : 'neutral'}>
-          {new Date(item.due_date).toLocaleDateString()}
+          {formatDay(item.due_date)}
         </Chip>
       )}
 

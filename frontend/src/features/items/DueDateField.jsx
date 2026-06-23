@@ -9,8 +9,10 @@
  */
 
 export function DueDateField({ value, onChange }) {
-  // Convert ISO timestamp → YYYY-MM-DD for the native date input
-  const inputValue = value ? new Date(value).toISOString().slice(0, 10) : ''
+  // Convert ISO timestamp → YYYY-MM-DD for the native date input.
+  // String slice avoids the UTC-shift bug that new Date().toISOString() introduces
+  // in behind-UTC timezones when the value is already a YYYY-MM-DD string.
+  const inputValue = value ? String(value).slice(0, 10) : ''
 
   function handleChange(e) {
     if (e.target.value === '') {

@@ -15,6 +15,7 @@
 
 import { useState } from 'react'
 import { Countdown } from './Countdown.jsx'
+import { parseLocalDay } from '../../lib/dates.js'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -43,9 +44,8 @@ function toLocalKey(date) {
  */
 function itemLocalKey(due_date) {
   if (!due_date) return null
-  // If already a Date, use it directly; otherwise parse it.
-  const d = due_date instanceof Date ? due_date : new Date(due_date)
-  if (isNaN(d.getTime())) return null
+  const d = parseLocalDay(due_date)
+  if (!d) return null
   return toLocalKey(d)
 }
 
@@ -114,14 +114,14 @@ export function CalendarView({
   }
 
   // Wedding day key (local parts)
-  const weddingKey =
-    weddingDate instanceof Date ? toLocalKey(weddingDate) : null
+  const parsedWedding = parseLocalDay(weddingDate)
+  const weddingKey = parsedWedding ? toLocalKey(parsedWedding) : null
 
   // Is wedding in the viewed month?
   const weddingInView =
-    weddingDate instanceof Date &&
-    weddingDate.getFullYear() === viewedYear &&
-    weddingDate.getMonth() === viewedMonth
+    parsedWedding !== null &&
+    parsedWedding.getFullYear() === viewedYear &&
+    parsedWedding.getMonth() === viewedMonth
 
   // Build grid
   const cells = buildMonthGrid(viewedYear, viewedMonth)

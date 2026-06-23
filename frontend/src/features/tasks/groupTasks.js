@@ -1,3 +1,5 @@
+import { parseLocalDay } from '../../lib/dates.js'
+
 /**
  * groupTasksByDue — pure helper that buckets tasks by due date relative to `now`.
  *
@@ -47,7 +49,8 @@ export function groupTasksByDue(tasks, now = new Date()) {
       continue
     }
 
-    const due = new Date(task.due_date)
+    const due = parseLocalDay(task.due_date)
+    if (!due) { result.noDate.push(task); continue }
     const diff = cmpDay(due, now)
 
     if (diff < 0 && !task.completed) {

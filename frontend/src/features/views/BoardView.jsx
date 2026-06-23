@@ -27,6 +27,7 @@ import { Chip } from '../../ui/Chip.jsx'
 import { Avatar } from '../../ui/Avatar.jsx'
 import { SegmentedControl } from '../../ui/SegmentedControl.jsx'
 import { resolveBoardMove } from './resolveBoardMove.js'
+import { formatDay, parseLocalDay } from '../../lib/dates.js'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -144,7 +145,7 @@ function DraggableCard({ item, members, onOpen, groupMode }) {
   const isOverdue =
     item.due_date &&
     !item.completed &&
-    new Date(item.due_date) < new Date()
+    parseLocalDay(item.due_date) < new Date()
 
   // Resolve assignee display name
   const assigneeName = (() => {
@@ -191,7 +192,7 @@ function DraggableCard({ item, members, onOpen, groupMode }) {
           {/* Due date chip */}
           {item.due_date && (
             <Chip color={isOverdue ? 'danger' : 'neutral'}>
-              {new Date(item.due_date).toLocaleDateString()}
+              {formatDay(item.due_date)}
             </Chip>
           )}
 
