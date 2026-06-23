@@ -315,7 +315,44 @@ describe('ProjectView', () => {
     expect(deleteMutate).toHaveBeenCalledWith('l1')
   })
 
-  it('delete button click does not trigger link navigation', () => {
+  // ---------------------------------------------------------------------------
+  // Navigation tests — genuine route-level assertions
+  // ---------------------------------------------------------------------------
+
+  it('clicking a list card link navigates to the list route', () => {
+    useProjectLists.mockReturnValue({
+      data: [{ id: 'l1', name: 'Guest List' }],
+      isLoading: false,
+    })
+
+    // Render with a second route that acts as the sentinel for /l/:listId
+    render(
+      <QueryClientProvider client={makeQC()}>
+        <MemoryRouter initialEntries={['/w/ws-1/p/proj-1']}>
+          <Routes>
+            <Route path="/w/:workspaceId/p/:projectId" element={<ProjectView />} />
+            <Route
+              path="/w/:workspaceId/p/:projectId/l/:listId"
+              element={<div data-testid="list-route-sentinel" />}
+            />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    // Project view should be visible before the click
+    expect(screen.getByTestId('project-view')).toBeInTheDocument()
+
+    // Click the link wrapping the list card
+    const link = screen.getByRole('link', { name: /guest list/i })
+    fireEvent.click(link)
+
+    // Router should have navigated to the list route — sentinel replaces ProjectView
+    expect(screen.getByTestId('list-route-sentinel')).toBeInTheDocument()
+    expect(screen.queryByTestId('project-view')).not.toBeInTheDocument()
+  })
+
+  it('delete button click does not trigger link navigation and calls mutate', () => {
     useProjectLists.mockReturnValue({
       data: [{ id: 'l1', name: 'Guest List' }],
       isLoading: false,
@@ -324,18 +361,37 @@ describe('ProjectView', () => {
     const deleteMutate = vi.fn()
     useDeleteList.mockReturnValue({ mutate: deleteMutate })
 
-    renderAt('proj-1')
+    // Same two-route setup so we can detect if navigation happened
+    render(
+      <QueryClientProvider client={makeQC()}>
+        <MemoryRouter initialEntries={['/w/ws-1/p/proj-1']}>
+          <Routes>
+            <Route path="/w/:workspaceId/p/:projectId" element={<ProjectView />} />
+            <Route
+              path="/w/:workspaceId/p/:projectId/l/:listId"
+              element={<div data-testid="list-route-sentinel" />}
+            />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
 
     const deleteBtn = screen.getByTestId('delete-list-l1')
+    fireEvent.click(deleteBtn) // first click: enter confirm state
 
-    // Simulate click — the link should NOT have been followed.
-    // We verify by checking the click did not propagate to a navigation.
-    // In MemoryRouter, navigation would change the route. Since the test
-    // renders at the project route, the route must remain unchanged after click.
-    fireEvent.click(deleteBtn)
-
-    // The project-view should still be visible (not navigated away)
+    // No navigation — ProjectView still in the document
     expect(screen.getByTestId('project-view')).toBeInTheDocument()
+    expect(screen.queryByTestId('list-route-sentinel')).not.toBeInTheDocument()
+
+    // mutate was NOT yet called (two-step confirmation)
+    expect(deleteMutate).not.toHaveBeenCalled()
+
+    fireEvent.click(deleteBtn) // second click: confirm delete
+    expect(deleteMutate).toHaveBeenCalledWith('l1')
+
+    // Still no navigation after confirmation either
+    expect(screen.getByTestId('project-view')).toBeInTheDocument()
+    expect(screen.queryByTestId('list-route-sentinel')).not.toBeInTheDocument()
   })
 
   // ---------------------------------------------------------------------------

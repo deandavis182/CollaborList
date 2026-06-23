@@ -99,29 +99,39 @@ function ListCard({ list, workspaceId, projectId, renameList, deleteList }) {
 
   return (
     <li key={list.id}>
-      <div className="relative group">
-        <Link to={`/w/${workspaceId}/p/${projectId}/l/${list.id}`}>
+      <div className="relative">
+        {renaming ? (
+          /* FIX 2: RenameInput is mutually exclusive with the Link — never nested inside <a> */
           <Card className="p-4" data-testid={`list-card-${list.id}`}>
-            {renaming ? (
-              <RenameInput
-                list={list}
-                onCommit={handleRenameCommit}
-                onCancel={handleRenameCancel}
-              />
-            ) : (
-              <h2 className="text-base font-medium text-text truncate">{list.name}</h2>
-            )}
+            <RenameInput
+              list={list}
+              onCommit={handleRenameCommit}
+              onCancel={handleRenameCancel}
+            />
             {list.item_count !== undefined && (
               <p className="mt-1 text-sm text-text-muted">
                 {list.item_count} {list.item_count === 1 ? 'item' : 'items'}
               </p>
             )}
           </Card>
-        </Link>
+        ) : (
+          <Link to={`/w/${workspaceId}/p/${projectId}/l/${list.id}`}>
+            <Card className="p-4" data-testid={`list-card-${list.id}`}>
+              <h2 className="text-base font-medium text-text truncate">{list.name}</h2>
+              {list.item_count !== undefined && (
+                <p className="mt-1 text-sm text-text-muted">
+                  {list.item_count} {list.item_count === 1 ? 'item' : 'items'}
+                </p>
+              )}
+            </Card>
+          </Link>
+        )}
 
-        {/* Management controls rendered outside Link to avoid navigation */}
+        {/* FIX 1: Controls are always visible (no opacity/hover hiding) so touch users can access them.
+            Small ghost buttons in muted text keep them visually unobtrusive.
+            focus-visible ring ensures keyboard discoverability. */}
         <div
-          className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          className="absolute top-2 right-2 flex gap-1"
           onClick={(e) => { e.preventDefault(); e.stopPropagation() }}
         >
           <Button
@@ -130,6 +140,7 @@ function ListCard({ list, workspaceId, projectId, renameList, deleteList }) {
             onClick={handleRenameClick}
             data-testid={`rename-list-${list.id}`}
             aria-label={`Rename ${list.name}`}
+            className="text-text-muted hover:text-text focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
           >
             Rename
           </Button>
@@ -139,6 +150,7 @@ function ListCard({ list, workspaceId, projectId, renameList, deleteList }) {
             onClick={handleDeleteClick}
             data-testid={`delete-list-${list.id}`}
             aria-label={confirmDelete ? `Confirm delete ${list.name}` : `Delete ${list.name}`}
+            className={confirmDelete ? undefined : 'text-text-muted hover:text-text focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none'}
           >
             {confirmDelete ? 'Confirm' : 'Delete'}
           </Button>
