@@ -56,3 +56,5 @@ coverage/
 # Production builds
 *.tar.gz
 *.zip
+# Playwright MCP test artifacts
+.playwright-mcp/
