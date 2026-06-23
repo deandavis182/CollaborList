@@ -663,7 +663,14 @@ app.get('/api/lists/:listId/items', authenticateToken, async (req, res) => {
     }
 
     const result = await pool.query(
-      'SELECT * FROM list_items WHERE list_id = $1 ORDER BY position, created_at',
+      `SELECT li.*, COALESCE(
+         (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color) ORDER BY t.name)
+          FROM item_tags it JOIN tags t ON t.id = it.tag_id WHERE it.item_id = li.id),
+         '[]'::json
+       ) AS tags
+       FROM list_items li
+       WHERE li.list_id = $1
+       ORDER BY li.position, li.created_at`,
       [listId]
     );
     res.json(result.rows);

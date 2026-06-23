@@ -60,5 +60,25 @@ module.exports = (authenticateToken, sanitize) => {
     }
   });
 
+  // GET /api/projects/:id/items — all items across the project's lists, with list name + tags
+  router.get('/:id/items', attachWorkspace, requireWorkspaceRole(pool, 'member'), async (req, res) => {
+    try {
+      const r = await pool.query(
+        `SELECT li.*, l.name AS list_name,
+           COALESCE((SELECT json_agg(json_build_object('id',t.id,'name',t.name,'color',t.color) ORDER BY t.name)
+                     FROM item_tags it JOIN tags t ON t.id=it.tag_id WHERE it.item_id=li.id), '[]'::json) AS tags
+         FROM list_items li
+         JOIN lists l ON l.id = li.list_id
+         WHERE l.project_id = $1
+         ORDER BY li.due_date ASC NULLS LAST, li.position`,
+        [req.params.id]
+      );
+      res.json(r.rows);
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: 'Failed to fetch project items' });
+    }
+  });
+
   return router;
 };
