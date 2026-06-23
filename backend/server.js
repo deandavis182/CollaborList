@@ -1186,6 +1186,11 @@ app.use('/api', require('./routes/fields')(authenticateToken, sanitizeInput, { l
 // Push subscription + notification prefs routes (V2 — web push)
 app.use('/api', require('./routes/push')(authenticateToken));
 
+// Attachments routes (V2 Phase 7A — upload/list/download/delete)
+const { upload: attachmentUpload, ensureUploadDir } = require('./lib/uploads');
+ensureUploadDir();
+app.use('/api', require('./routes/attachments')(authenticateToken, attachmentUpload));
+
 // Security check for production environment
 function checkProductionSecurity() {
   if (process.env.NODE_ENV === 'production') {

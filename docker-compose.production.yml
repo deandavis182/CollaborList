@@ -44,6 +44,8 @@ services:
     ports:
       - "3001:3001"
     restart: always
+    volumes:
+      - attachments_data:/app/uploads
 
   frontend:
     build: ./frontend
@@ -58,6 +60,7 @@ services:
 
 volumes:
   postgres_data:
+  attachments_data:
 
 networks:
   listapp-network:
