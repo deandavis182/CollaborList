@@ -1,4 +1,6 @@
 import { io } from 'socket.io-client'
+import { EVENTS } from './events.js'
+import { useStore } from './store.js'
 
 /**
  * Create and return a socket.io connection authenticated with the given JWT.
@@ -82,6 +84,76 @@ export function registerSocketHandlers(socket, queryClient) {
   }
 
   // ------------------------------------------------------------------
+  // Item events — invalidate the items cache for the affected list
+  // ------------------------------------------------------------------
+
+  const onItemCreated = (payload) => {
+    if (payload?.listId == null) return
+    queryClient.invalidateQueries({ queryKey: ['items', payload.listId] })
+  }
+
+  const onItemUpdated = (payload) => {
+    if (payload?.listId == null) return
+    queryClient.invalidateQueries({ queryKey: ['items', payload.listId] })
+  }
+
+  const onItemDeleted = (payload) => {
+    if (payload?.listId == null) return
+    queryClient.invalidateQueries({ queryKey: ['items', payload.listId] })
+  }
+
+  // ------------------------------------------------------------------
+  // Comment events — invalidate comments for the affected item
+  // ------------------------------------------------------------------
+
+  const onCommentCreated = (payload) => {
+    if (payload?.itemId == null) return
+    queryClient.invalidateQueries({ queryKey: ['comments', payload.itemId] })
+  }
+
+  const onCommentDeleted = (payload) => {
+    if (payload?.itemId == null) return
+    queryClient.invalidateQueries({ queryKey: ['comments', payload.itemId] })
+  }
+
+  // ------------------------------------------------------------------
+  // Activity events — invalidate workspace activity feed, and
+  // additionally invalidate myTasks when the verb is 'assigned'.
+  // ------------------------------------------------------------------
+
+  const onActivityCreated = (payload) => {
+    if (payload?.workspace_id == null) return
+    queryClient.invalidateQueries({ queryKey: ['activity', payload.workspace_id] })
+    if (payload.verb === 'assigned') {
+      queryClient.invalidateQueries({ queryKey: ['myTasks'] })
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Presence events — convert array snapshot to map and update store
+  // ------------------------------------------------------------------
+
+  const onPresenceUpdate = (payload) => {
+    if (!Array.isArray(payload)) return
+    const map = Object.fromEntries(payload.map((entry) => [entry.userId, entry]))
+    useStore.getState().setPresence(map)
+  }
+
+  // ------------------------------------------------------------------
+  // Typing events — delegate to store's setTyping reducer
+  // ------------------------------------------------------------------
+
+  const onTyping = (payload) => {
+    if (payload == null) return
+    useStore.getState().setTyping({
+      listId: payload.listId,
+      userId: payload.userId,
+      email: payload.email,
+      isTyping: payload.isTyping,
+    })
+  }
+
+  // ------------------------------------------------------------------
   // Register listeners
   // ------------------------------------------------------------------
   socket.on('workspace-updated', onWorkspaceUpdated)
@@ -90,6 +162,14 @@ export function registerSocketHandlers(socket, queryClient) {
   socket.on('list-created', onListCreated)
   socket.on('list-updated', onListUpdated)
   socket.on('list-deleted', onListDeleted)
+  socket.on(EVENTS.ITEM_CREATED, onItemCreated)
+  socket.on(EVENTS.ITEM_UPDATED, onItemUpdated)
+  socket.on(EVENTS.ITEM_DELETED, onItemDeleted)
+  socket.on(EVENTS.COMMENT_CREATED, onCommentCreated)
+  socket.on(EVENTS.COMMENT_DELETED, onCommentDeleted)
+  socket.on(EVENTS.ACTIVITY_CREATED, onActivityCreated)
+  socket.on(EVENTS.PRESENCE_UPDATE, onPresenceUpdate)
+  socket.on(EVENTS.TYPING, onTyping)
 
   // ------------------------------------------------------------------
   // Return cleanup — removes only the handlers this function added
@@ -101,5 +181,13 @@ export function registerSocketHandlers(socket, queryClient) {
     socket.off('list-created', onListCreated)
     socket.off('list-updated', onListUpdated)
     socket.off('list-deleted', onListDeleted)
+    socket.off(EVENTS.ITEM_CREATED, onItemCreated)
+    socket.off(EVENTS.ITEM_UPDATED, onItemUpdated)
+    socket.off(EVENTS.ITEM_DELETED, onItemDeleted)
+    socket.off(EVENTS.COMMENT_CREATED, onCommentCreated)
+    socket.off(EVENTS.COMMENT_DELETED, onCommentDeleted)
+    socket.off(EVENTS.ACTIVITY_CREATED, onActivityCreated)
+    socket.off(EVENTS.PRESENCE_UPDATE, onPresenceUpdate)
+    socket.off(EVENTS.TYPING, onTyping)
   }
 }

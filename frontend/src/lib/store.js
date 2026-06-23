@@ -31,6 +31,45 @@ export const useStore = create((set) => ({
   setPresence: (map) => set({ presence: map }),
 
   // ---------------------------------------------------------------------------
+  // Typing — { [listId]: { [userId]: email } }
+  // ---------------------------------------------------------------------------
+  typing: {},
+
+  setTyping: ({ listId, userId, email, isTyping }) =>
+    set((state) => {
+      const prev = state.typing
+      if (isTyping) {
+        return {
+          typing: {
+            ...prev,
+            [listId]: {
+              ...(prev[listId] ?? {}),
+              [userId]: email,
+            },
+          },
+        }
+      }
+      // isTyping === false: remove the userId entry
+      const listMap = prev[listId]
+      if (!listMap || !(userId in listMap)) {
+        // Nothing to remove
+        return {}
+      }
+      const { [userId]: _removed, ...restList } = listMap
+      if (Object.keys(restList).length === 0) {
+        // Drop the listId key entirely when empty
+        const { [listId]: _dropped, ...restTyping } = prev
+        return { typing: restTyping }
+      }
+      return {
+        typing: {
+          ...prev,
+          [listId]: restList,
+        },
+      }
+    }),
+
+  // ---------------------------------------------------------------------------
   // Theme
   // ---------------------------------------------------------------------------
   theme: 'light',

@@ -8,6 +8,7 @@ function resetStore() {
     currentProjectId: null,
     detailItemId: null,
     presence: {},
+    typing: {},
     theme: 'light',
   })
 }
@@ -81,6 +82,61 @@ describe('useStore — presence', () => {
     useStore.getState().setPresence({ 'user-1': { name: 'Alice' } })
     useStore.getState().setPresence({})
     expect(useStore.getState().presence).toEqual({})
+  })
+})
+
+describe('useStore — typing', () => {
+  beforeEach(resetStore)
+
+  it('starts with an empty typing map', () => {
+    expect(useStore.getState().typing).toEqual({})
+  })
+
+  it('setTyping with isTyping=true adds userId under listId', () => {
+    useStore.getState().setTyping({ listId: 5, userId: 'u1', email: 'alice@x.com', isTyping: true })
+    expect(useStore.getState().typing).toEqual({ 5: { u1: 'alice@x.com' } })
+  })
+
+  it('setTyping with isTyping=true adds multiple users under the same listId', () => {
+    useStore.getState().setTyping({ listId: 5, userId: 'u1', email: 'alice@x.com', isTyping: true })
+    useStore.getState().setTyping({ listId: 5, userId: 'u2', email: 'bob@x.com', isTyping: true })
+    expect(useStore.getState().typing).toEqual({ 5: { u1: 'alice@x.com', u2: 'bob@x.com' } })
+  })
+
+  it('setTyping with isTyping=false removes userId from under listId', () => {
+    useStore.getState().setTyping({ listId: 5, userId: 'u1', email: 'alice@x.com', isTyping: true })
+    useStore.getState().setTyping({ listId: 5, userId: 'u2', email: 'bob@x.com', isTyping: true })
+    useStore.getState().setTyping({ listId: 5, userId: 'u1', email: 'alice@x.com', isTyping: false })
+    expect(useStore.getState().typing).toEqual({ 5: { u2: 'bob@x.com' } })
+  })
+
+  it('drops the listId key when the last user stops typing', () => {
+    useStore.getState().setTyping({ listId: 5, userId: 'u1', email: 'alice@x.com', isTyping: true })
+    useStore.getState().setTyping({ listId: 5, userId: 'u1', email: 'alice@x.com', isTyping: false })
+    expect(useStore.getState().typing).toEqual({})
+    expect(Object.keys(useStore.getState().typing)).not.toContain('5')
+  })
+
+  it('setTyping handles multiple lists independently', () => {
+    useStore.getState().setTyping({ listId: 1, userId: 'u1', email: 'alice@x.com', isTyping: true })
+    useStore.getState().setTyping({ listId: 2, userId: 'u2', email: 'bob@x.com', isTyping: true })
+    expect(useStore.getState().typing).toEqual({
+      1: { u1: 'alice@x.com' },
+      2: { u2: 'bob@x.com' },
+    })
+  })
+
+  it('removing from one list does not affect another', () => {
+    useStore.getState().setTyping({ listId: 1, userId: 'u1', email: 'alice@x.com', isTyping: true })
+    useStore.getState().setTyping({ listId: 2, userId: 'u2', email: 'bob@x.com', isTyping: true })
+    useStore.getState().setTyping({ listId: 1, userId: 'u1', email: 'alice@x.com', isTyping: false })
+    expect(useStore.getState().typing).toEqual({ 2: { u2: 'bob@x.com' } })
+  })
+
+  it('isTyping=false on a user not in the map does not throw', () => {
+    expect(() =>
+      useStore.getState().setTyping({ listId: 99, userId: 'u-ghost', email: 'x@y.com', isTyping: false })
+    ).not.toThrow()
   })
 })
 
