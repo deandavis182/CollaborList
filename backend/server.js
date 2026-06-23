@@ -1094,6 +1094,9 @@ app.use('/api', require('./routes/comments')(authenticateToken, sanitizeInput, {
 // Activity feed routes (V2)
 app.use('/api/activity', require('./routes/activity')(authenticateToken, sanitizeInput, { list: emitListUpdate, workspace: emitWorkspaceUpdate }));
 
+// My Tasks route (V2 — assigned items across all accessible lists)
+app.use('/api/me', require('./routes/tasks')(authenticateToken));
+
 // Security check for production environment
 function checkProductionSecurity() {
   if (process.env.NODE_ENV === 'production') {
