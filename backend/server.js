@@ -33,6 +33,7 @@ const events = require('./realtime/events');
 
 // Services
 const notificationService = require('./services/notificationService');
+const recurrenceService = require('./services/recurrenceService');
 
 // Middleware and Security
 app.use(express.json());
@@ -777,7 +778,7 @@ app.post('/api/lists/:listId/items', authenticateToken, async (req, res) => {
 app.put('/api/items/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
   let { text, completed, position, notes, parent_id, list_id: requestedListId,
-        assignee_id, due_date, status } = req.body;
+        assignee_id, due_date, status, recur_unit, recur_interval } = req.body;
 
   // Sanitize text input if provided
   if (text !== undefined) {
@@ -940,6 +941,14 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
       params.push(due_date);
       query += `, reminder_sent = FALSE`;
     }
+    if (recur_unit !== undefined) {
+      query += `, recur_unit = $${paramCount++}`;
+      params.push(recur_unit);
+    }
+    if (recur_interval !== undefined) {
+      query += `, recur_interval = $${paramCount++}`;
+      params.push(recur_interval);
+    }
 
     query += ` WHERE id = $${paramCount} RETURNING *`;
     params.push(id);
@@ -1046,6 +1055,16 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
         } catch (pushErr) {
           console.error('Assignment push failed (non-fatal):', pushErr);
         }
+      }
+
+      // Recurring task: spawn the next occurrence when this update completed a rule-bearing item.
+      try {
+        const spawned = await recurrenceService.maybeSpawnNext(pool, { item: updatedItem, prevCompleted: prev_completed });
+        if (spawned) {
+          emitListUpdate(targetListId, 'item-created', { listId: targetListId, item: spawned });
+        }
+      } catch (recurErr) {
+        console.error('Recurrence spawn failed (non-fatal):', recurErr);
       }
     }
 
