@@ -16,6 +16,7 @@ import './index.css'
 
 import { Providers } from './app/providers.jsx'
 import { RouterApp } from './app/routes.jsx'
+import { registerServiceWorker } from './lib/push'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -24,3 +25,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </Providers>
   </React.StrictMode>,
 )
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => { registerServiceWorker() })
+}

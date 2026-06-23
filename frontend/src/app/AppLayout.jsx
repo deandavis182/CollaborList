@@ -13,11 +13,13 @@
  *   - Detail surface handled by ItemDetailDrawer inside ListView
  */
 
+import { useState } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useStore } from '../lib/store.js'
 import { Sidebar } from './Sidebar.jsx'
 import { BottomTabBar } from './BottomTabBar.jsx'
 import { PresenceBar } from '../features/collab/PresenceBar.jsx'
+import { NotificationPrefs } from '../features/notifications/NotificationPrefs.jsx'
 import { useWorkspaceActivity } from '../lib/api.js'
 import { getUser, logout } from '../lib/auth.js'
 import { Button } from '../ui/Button.jsx'
@@ -27,6 +29,7 @@ export function AppLayout({ children }) {
   const navigate = useNavigate()
   const location = useLocation()
   const currentUser = getUser()
+  const [notifOpen, setNotifOpen] = useState(false)
 
   // Derive activeTab from the current path
   const path = location.pathname
@@ -67,7 +70,7 @@ export function AppLayout({ children }) {
         {/* Left side — presence avatars */}
         <PresenceBar />
 
-        {/* Right side — current user email + logout */}
+        {/* Right side — current user email + notifications + logout */}
         <div className="flex items-center gap-3">
           {currentUser?.email && (
             <span
@@ -80,6 +83,14 @@ export function AppLayout({ children }) {
           <Button
             variant="ghost"
             size="sm"
+            data-testid="open-notifications-btn"
+            onClick={() => setNotifOpen(true)}
+          >
+            Notifications
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
             data-testid="logout-btn"
             onClick={() => {
               logout()
@@ -89,7 +100,11 @@ export function AppLayout({ children }) {
             Log out
           </Button>
         </div>
+
       </header>
+
+      {/* Notification prefs sheet — rendered outside header to avoid landmark nesting */}
+      <NotificationPrefs open={notifOpen} onClose={() => setNotifOpen(false)} />
 
       {/* ------------------------------------------------------------------ */}
       {/* Main row: sidebar + content                                          */}

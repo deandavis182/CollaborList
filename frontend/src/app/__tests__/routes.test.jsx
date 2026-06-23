@@ -51,6 +51,20 @@ vi.mock('../../lib/api.js', () => ({
   useDeleteFieldDef: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useApplyFieldPreset: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useSetItemField: vi.fn(() => ({ mutate: vi.fn() })),
+  // Notification hooks — needed because AppLayout now mounts NotificationPrefs
+  useVapidKey: vi.fn(() => ({ data: null })),
+  useNotificationPrefs: vi.fn(() => ({ data: null })),
+  useUpdateNotificationPrefs: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+}))
+
+// ---------------------------------------------------------------------------
+// Mock lib/push — prevent real browser API access in jsdom
+// ---------------------------------------------------------------------------
+vi.mock('../../lib/push.js', () => ({
+  pushSupported:       vi.fn(() => false),
+  getPermission:       vi.fn(() => 'default'),
+  subscribeToPush:     vi.fn(),
+  unsubscribeFromPush: vi.fn(),
 }))
 
 // ---------------------------------------------------------------------------

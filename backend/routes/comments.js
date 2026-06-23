@@ -8,6 +8,7 @@ const commentService = require('../services/commentService');
 const activityService = require('../services/activityService');
 const workspaceService = require('../services/workspaceService');
 const events = require('../realtime/events');
+const notificationService = require('../services/notificationService');
 
 /**
  * Factory matching the router style in routes/projects.js / routes/workspaces.js.
@@ -78,8 +79,14 @@ module.exports = (authenticateToken, sanitize, emit) => {
           });
           emit.workspace(workspaceId, events.ACTIVITY_CREATED, row);
 
+          // Fetch item text + assignee for push notifications
+          const itemRow = await pool.query('SELECT text, assignee_id FROM list_items WHERE id = $1', [req.params.id]);
+          const itemText = itemRow.rows[0] ? itemRow.rows[0].text : '';
+          const assigneeId = itemRow.rows[0] ? itemRow.rows[0].assignee_id : null;
+
           // Resolve @mentions
           const handles = commentService.parseMentions(body);
+          const mentionedUserIds = new Set();
           if (handles.length > 0) {
             const members = await workspaceService.listMembers(pool, workspaceId);
             for (const member of members) {
@@ -99,9 +106,33 @@ module.exports = (authenticateToken, sanitize, emit) => {
                   meta:    { mentionedUserId: member.user_id },
                 });
                 emit.workspace(workspaceId, events.ACTIVITY_CREATED, mentionRow);
+                mentionedUserIds.add(member.user_id);
+
+                try {
+                  await notificationService.notifyMention(pool, {
+                    mentionedUserId: member.user_id,
+                    actorId: req.user.id,
+                    item: { id: Number(req.params.id), text: itemText },
+                    projectId, listId: access.listId, workspaceId,
+                    commentId: comment.id,
+                  });
+                } catch (e) { console.error('Mention push failed (non-fatal):', e); }
               }
             }
           }
+
+          // Notify item assignee as a watcher; exclude if already @mentioned above
+          // (notificationService still skips actor===recipient internally for the self-comment case)
+          try {
+            const watcherIds = (assigneeId && !mentionedUserIds.has(assigneeId)) ? [assigneeId] : [];
+            await notificationService.notifyComment(pool, {
+              watcherIds,
+              actorId: req.user.id,
+              item: { id: Number(req.params.id), text: itemText },
+              projectId, listId: access.listId, workspaceId,
+              commentId: comment.id,
+            });
+          } catch (e) { console.error('Comment push failed (non-fatal):', e); }
         }
       } catch (actErr) {
         console.error('Activity/mention recording failed (non-fatal):', actErr);

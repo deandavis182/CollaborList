@@ -31,6 +31,9 @@ const { runMigrations } = require('./db/migrations');
 const presence = require('./realtime/presence');
 const events = require('./realtime/events');
 
+// Services
+const notificationService = require('./services/notificationService');
+
 // Middleware and Security
 app.use(express.json());
 const { validateEmail, sanitizeInput } = createSecurityMiddleware(app, cors, JWT_SECRET);
@@ -935,6 +938,7 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
     if (due_date !== undefined) {
       query += `, due_date = $${paramCount++}`;
       params.push(due_date);
+      query += `, reminder_sent = FALSE`;
     }
 
     query += ` WHERE id = $${paramCount} RETURNING *`;
@@ -1022,6 +1026,26 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
         }
       } catch (actErr) {
         console.error('Activity recording error (non-fatal):', actErr);
+      }
+
+      // Push (best-effort — never fail the response)
+      // Only query the DB when an assignment change is actually present
+      if (assignee_id !== undefined && updatedItem.assignee_id && updatedItem.assignee_id !== prev_assignee_id) {
+        try {
+          const { workspaceId, projectId } = await require('./services/activityService').projectContextForList(pool, targetListId);
+          if (workspaceId) {
+            await notificationService.notifyAssignment(pool, {
+              assigneeId: updatedItem.assignee_id,
+              actorId: req.user.id,
+              item: updatedItem,
+              projectId,
+              listId: targetListId,
+              workspaceId,
+            });
+          }
+        } catch (pushErr) {
+          console.error('Assignment push failed (non-fatal):', pushErr);
+        }
       }
     }
 
@@ -1159,6 +1183,9 @@ app.use('/api/me', require('./routes/tasks')(authenticateToken));
 // Structured fields routes (V2 — field-defs + per-item values)
 app.use('/api', require('./routes/fields')(authenticateToken, sanitizeInput, { list: emitListUpdate }));
 
+// Push subscription + notification prefs routes (V2 — web push)
+app.use('/api', require('./routes/push')(authenticateToken));
+
 // Security check for production environment
 function checkProductionSecurity() {
   if (process.env.NODE_ENV === 'production') {
@@ -1247,5 +1274,10 @@ initializeDatabase().then(() => {
   server.listen(PORT, () => {
     console.log(`Server with auth and real-time updates is running on port ${PORT}`);
     console.log(`Security status: ${GOOGLE_CLIENT_ID && !GOOGLE_CLIENT_ID.includes('your-') ? 'Google OAuth enabled (signup disabled)' : 'Traditional auth enabled'}`);
+    // Due-date reminder sweep (in-process; no-ops if VAPID keys absent). Guarded for tests.
+    if (process.env.NODE_ENV !== 'test') {
+      try { require('./jobs/reminders').startReminderJob(pool, {}); }
+      catch (e) { console.error('Failed to start reminder job (non-fatal):', e); }
+    }
   });
 });
