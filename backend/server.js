@@ -31,6 +31,9 @@ const { runMigrations } = require('./db/migrations');
 const presence = require('./realtime/presence');
 const events = require('./realtime/events');
 
+// Services
+const notificationService = require('./services/notificationService');
+
 // Middleware and Security
 app.use(express.json());
 const { validateEmail, sanitizeInput } = createSecurityMiddleware(app, cors, JWT_SECRET);
@@ -1026,11 +1029,11 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
       }
 
       // Push (best-effort — never fail the response)
-      try {
-        const notificationService = require('./services/notificationService');
-        const { workspaceId, projectId } = await require('./services/activityService').projectContextForList(pool, targetListId);
-        if (workspaceId) {
-          if (updatedItem.assignee_id && updatedItem.assignee_id !== prev_assignee_id) {
+      // Only query the DB when an assignment change is actually present
+      if (assignee_id !== undefined && updatedItem.assignee_id && updatedItem.assignee_id !== prev_assignee_id) {
+        try {
+          const { workspaceId, projectId } = await require('./services/activityService').projectContextForList(pool, targetListId);
+          if (workspaceId) {
             await notificationService.notifyAssignment(pool, {
               assigneeId: updatedItem.assignee_id,
               actorId: req.user.id,
@@ -1040,9 +1043,9 @@ app.put('/api/items/:id', authenticateToken, async (req, res) => {
               workspaceId,
             });
           }
+        } catch (pushErr) {
+          console.error('Assignment push failed (non-fatal):', pushErr);
         }
-      } catch (pushErr) {
-        console.error('Assignment push failed (non-fatal):', pushErr);
       }
     }
 

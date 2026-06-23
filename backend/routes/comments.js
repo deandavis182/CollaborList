@@ -8,6 +8,7 @@ const commentService = require('../services/commentService');
 const activityService = require('../services/activityService');
 const workspaceService = require('../services/workspaceService');
 const events = require('../realtime/events');
+const notificationService = require('../services/notificationService');
 
 /**
  * Factory matching the router style in routes/projects.js / routes/workspaces.js.
@@ -108,7 +109,6 @@ module.exports = (authenticateToken, sanitize, emit) => {
                 mentionedUserIds.add(member.user_id);
 
                 try {
-                  const notificationService = require('../services/notificationService');
                   await notificationService.notifyMention(pool, {
                     mentionedUserId: member.user_id,
                     actorId: req.user.id,
@@ -121,11 +121,12 @@ module.exports = (authenticateToken, sanitize, emit) => {
             }
           }
 
-          // Notify item assignee as a watcher (skip if actor or already mentioned)
+          // Notify item assignee as a watcher; exclude if already @mentioned above
+          // (notificationService still skips actor===recipient internally for the self-comment case)
           try {
-            const notificationService = require('../services/notificationService');
+            const watcherIds = (assigneeId && !mentionedUserIds.has(assigneeId)) ? [assigneeId] : [];
             await notificationService.notifyComment(pool, {
-              watcherIds: assigneeId ? [assigneeId] : [],
+              watcherIds,
               actorId: req.user.id,
               item: { id: Number(req.params.id), text: itemText },
               projectId, listId: access.listId, workspaceId,
