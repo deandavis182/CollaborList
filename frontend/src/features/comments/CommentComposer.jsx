@@ -117,9 +117,6 @@ export function CommentComposer({ itemId, workspaceId, disabled = false }) {
         },
       }
     )
-    // Clear optimistically so UI feels responsive
-    setBody('')
-    setCaretPos(0)
   }
 
   function handleKeyDown(e) {

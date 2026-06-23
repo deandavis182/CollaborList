@@ -65,10 +65,13 @@ describe('CommentComposer', () => {
   })
 
   // -------------------------------------------------------------------------
-  // 2. Submitting with body text calls createComment.mutate and clears textarea
+  // 2. Submitting with body text calls createComment.mutate and clears textarea on success
   // -------------------------------------------------------------------------
-  it('clicking Send with non-empty body calls createComment.mutate({ body }) and clears textarea', () => {
-    const mutateSpy = vi.fn()
+  it('clicking Send with non-empty body calls createComment.mutate({ body }) and clears textarea on success', () => {
+    // Simulate a successful mutate by immediately invoking the onSuccess callback
+    const mutateSpy = vi.fn().mockImplementation((_vars, opts) => {
+      if (opts?.onSuccess) opts.onSuccess()
+    })
     setupMocks({ mutateSpy })
 
     render(<CommentComposer itemId={5} workspaceId="ws-1" />, { wrapper: Wrapper })
@@ -82,6 +85,7 @@ describe('CommentComposer', () => {
       { body: 'Hello world' },
       expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) })
     )
+    // Textarea must be cleared only after a successful post (via onSuccess)
     expect(textarea.value).toBe('')
   })
 
@@ -256,9 +260,9 @@ describe('CommentComposer', () => {
   })
 
   // -------------------------------------------------------------------------
-  // 10. Error path: mutation error shows Toast
+  // 10. Error path: mutation error shows Toast and preserves draft
   // -------------------------------------------------------------------------
-  it('shows a Toast when createComment mutation triggers onError', async () => {
+  it('shows a Toast when createComment mutation triggers onError and preserves the draft', async () => {
     const mutateSpy = vi.fn().mockImplementation((_vars, opts) => {
       if (opts?.onError) opts.onError(new Error('403 Forbidden'))
     })
@@ -275,6 +279,8 @@ describe('CommentComposer', () => {
       expect(screen.getByRole('status')).toBeInTheDocument()
     })
     expect(screen.getByRole('status')).toHaveTextContent(/couldn't post comment/i)
+    // Draft must be preserved so the user can retry after a failed post
+    expect(textarea.value).toBe('test comment')
   })
 
   // -------------------------------------------------------------------------
