@@ -27,6 +27,10 @@ const { createSecurityMiddleware } = require('./security');
 const pool = require('./db/pool');
 const { runMigrations } = require('./db/migrations');
 
+// Real-time modules
+const presence = require('./realtime/presence');
+const events = require('./realtime/events');
+
 // Middleware and Security
 app.use(express.json());
 const { validateEmail, sanitizeInput } = createSecurityMiddleware(app, cors, JWT_SECRET);
@@ -47,6 +51,24 @@ io.use(async (socket, next) => {
     next(new Error('Authentication error'));
   }
 });
+
+/**
+ * Broadcast the current presence snapshot to all workspace rooms the socket
+ * belongs to. Best-effort — errors are swallowed so a presence broadcast never
+ * crashes a socket handler.
+ * @param {import('socket.io').Socket} socket
+ * @param {number[]} workspaceIds  Pre-captured list of workspace ids for this user.
+ */
+async function broadcastPresence(socket, workspaceIds) {
+  try {
+    const snap = presence.snapshot();
+    for (const wsId of workspaceIds) {
+      io.to(`workspace-${wsId}`).emit(events.PRESENCE_UPDATE, snap);
+    }
+  } catch (err) {
+    console.error('Error broadcasting presence:', err);
+  }
+}
 
 // Socket.io connection handling
 io.on('connection', async (socket) => {
@@ -70,7 +92,10 @@ io.on('connection', async (socket) => {
     console.error('Error joining list rooms:', error);
   }
 
-  // Join rooms for all workspaces the user is a member of
+  // Join rooms for all workspaces the user is a member of.
+  // Capture workspace ids so they are available in the disconnect handler
+  // (where the socket may already be leaving rooms).
+  let workspaceIds = [];
   try {
     const wsRooms = await pool.query(
       'SELECT workspace_id FROM workspace_members WHERE user_id = $1',
@@ -78,11 +103,16 @@ io.on('connection', async (socket) => {
     );
     for (const row of wsRooms.rows) {
       socket.join(`workspace-${row.workspace_id}`);
+      workspaceIds.push(row.workspace_id);
       console.log(`User ${socket.userEmail} joined room workspace-${row.workspace_id}`);
     }
   } catch (error) {
     console.error('Error joining workspace rooms:', error);
   }
+
+  // Mark user online and broadcast updated presence to their workspaces
+  presence.setOnline(socket.userId, socket.userEmail);
+  broadcastPresence(socket, workspaceIds);
 
   // Handle joining a specific list room
   socket.on('join-list', (listId) => {
@@ -96,8 +126,26 @@ io.on('connection', async (socket) => {
     console.log(`User ${socket.userEmail} left list-${listId}`);
   });
 
+  // Presence: user navigated to a list
+  socket.on('presence-list', (listId) => {
+    presence.setCurrentList(socket.userId, listId);
+    broadcastPresence(socket, workspaceIds);
+  });
+
+  // Typing indicator: relay directly to the list room (not stored in presence)
+  socket.on('typing', ({ listId, isTyping }) => {
+    io.to(`list-${listId}`).emit(events.TYPING, {
+      userId: socket.userId,
+      email: socket.userEmail,
+      listId: Number(listId),
+      isTyping: !!isTyping,
+    });
+  });
+
   socket.on('disconnect', () => {
     console.log(`User ${socket.userEmail} disconnected`);
+    presence.setOffline(socket.userId);
+    broadcastPresence(socket, workspaceIds);
   });
 });
 
