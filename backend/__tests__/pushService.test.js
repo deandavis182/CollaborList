@@ -3,7 +3,10 @@ jest.mock('web-push', () => ({
   setVapidDetails: jest.fn(),
   sendNotification: jest.fn(),
 }));
-const webpush = require('web-push');
+
+// Accessor function: always returns the CURRENT mock instance, which is
+// correct even after jest.resetModules() clears the module registry.
+function webpush() { return jest.requireMock('web-push'); }
 
 describe('pushService', () => {
   const OLD_ENV = process.env;
@@ -21,7 +24,7 @@ describe('pushService', () => {
     delete process.env.VAPID_PRIVATE_KEY;
     const svc = load();
     expect(svc.isEnabled()).toBe(false);
-    expect(webpush.setVapidDetails).not.toHaveBeenCalled();
+    expect(webpush().setVapidDetails).not.toHaveBeenCalled();
   });
 
   test('isEnabled is true and configures web-push when keys present', () => {
@@ -30,7 +33,7 @@ describe('pushService', () => {
     process.env.VAPID_SUBJECT = 'mailto:a@b.com';
     const svc = load();
     expect(svc.isEnabled()).toBe(true);
-    expect(webpush.setVapidDetails).toHaveBeenCalledWith('mailto:a@b.com', 'pub', 'priv');
+    expect(webpush().setVapidDetails).toHaveBeenCalledWith('mailto:a@b.com', 'pub', 'priv');
   });
 
   test('sendToUser no-ops when disabled', async () => {
@@ -40,7 +43,7 @@ describe('pushService', () => {
     const res = await svc.sendToUser(pool, 1, { title: 't', body: 'b', url: '/' });
     expect(res).toEqual({ sent: 0, pruned: 0 });
     expect(pool.query).not.toHaveBeenCalled();
-    expect(webpush.sendNotification).not.toHaveBeenCalled();
+    expect(webpush().sendNotification).not.toHaveBeenCalled();
   });
 
   test('sendToUser sends to each subscription and prunes 410/404', async () => {
@@ -54,7 +57,7 @@ describe('pushService', () => {
       { id: 1, endpoint: 'e1', keys: { p256dh: 'x', auth: 'y' } },
       { id: 2, endpoint: 'e2', keys: { p256dh: 'x', auth: 'y' } },
     ]});
-    webpush.sendNotification
+    webpush().sendNotification
       .mockResolvedValueOnce({})                       // e1 ok
       .mockRejectedValueOnce({ statusCode: 410 });     // e2 gone
     // deleteSubscription query for e2
@@ -63,7 +66,7 @@ describe('pushService', () => {
     const res = await svc.sendToUser(pool, 7, { title: 't', body: 'b', url: '/x' });
 
     expect(res).toEqual({ sent: 1, pruned: 1 });
-    expect(webpush.sendNotification).toHaveBeenCalledTimes(2);
+    expect(webpush().sendNotification).toHaveBeenCalledTimes(2);
     // pruned the gone endpoint
     expect(pool.query).toHaveBeenCalledWith(
       'DELETE FROM push_subscriptions WHERE endpoint = $1', ['e2']
