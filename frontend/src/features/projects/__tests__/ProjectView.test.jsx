@@ -140,13 +140,30 @@ describe('ProjectView', () => {
     expect(useProjectLists).toHaveBeenCalledWith('my-project-id')
   })
 
-  it('includes a note that item editing is in the current app', () => {
+  it('does NOT include the "coming in Phase 3" note (items are now editable in this shell)', () => {
     useProjectLists.mockReturnValue({ data: [], isLoading: false })
 
     renderAt('proj-1')
 
-    // There should be a link or text pointing to the current app
-    const link = screen.getByRole('link', { name: /current app/i })
-    expect(link).toBeInTheDocument()
+    expect(screen.queryByText(/coming in Phase 3/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /current app/i })).not.toBeInTheDocument()
+  })
+
+  it('renders each list card as a link to the list route', () => {
+    useProjectLists.mockReturnValue({
+      data: [
+        { id: 'l1', name: 'Guest List' },
+        { id: 'l2', name: 'Vendor List' },
+      ],
+      isLoading: false,
+    })
+
+    renderAt('proj-1')
+
+    // Each Card should be wrapped in a Link → <a href="/w/ws-1/p/proj-1/l/{id}">
+    const links = screen.getAllByRole('link')
+    const hrefs = links.map((l) => l.getAttribute('href'))
+    expect(hrefs).toContain('/w/ws-1/p/proj-1/l/l1')
+    expect(hrefs).toContain('/w/ws-1/p/proj-1/l/l2')
   })
 })

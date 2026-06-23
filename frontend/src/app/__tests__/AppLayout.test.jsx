@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import React from 'react'
@@ -15,6 +15,7 @@ vi.mock('../../lib/api.js', () => ({
   useWorkspaceActivity: vi.fn(() => ({ data: { items: [], unread: 0 } })),
 }))
 
+import { useWorkspaceActivity } from '../../lib/api.js'
 import { useStore } from '../../lib/store.js'
 import { AppLayout } from '../AppLayout.jsx'
 
@@ -25,10 +26,10 @@ function makeQC() {
   return new QueryClient({ defaultOptions: { queries: { retry: false } } })
 }
 
-function Wrapper({ children }) {
+function Wrapper({ children, initialPath = '/' }) {
   return (
     <QueryClientProvider client={makeQC()}>
-      <MemoryRouter>{children}</MemoryRouter>
+      <MemoryRouter initialEntries={[initialPath]}>{children}</MemoryRouter>
     </QueryClientProvider>
   )
 }
@@ -111,21 +112,87 @@ describe('AppLayout — header + presence bar', () => {
   })
 })
 
-describe('AppLayout — detail sheet', () => {
+describe('AppLayout — no placeholder detail Sheet', () => {
   beforeEach(resetStore)
 
-  it('does not show a dialog when detailItemId is null', () => {
+  it('does not render a placeholder detail dialog when detailItemId is null', () => {
     render(<AppLayout><span /></AppLayout>, { wrapper: Wrapper })
-
+    // AppLayout no longer renders any Sheet — the real ItemDetailDrawer is mounted by ListView
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('shows a dialog when detailItemId is set', () => {
+  it('does not render a placeholder detail dialog even when detailItemId is set (drawer is mounted by ListView)', () => {
     useStore.setState({ detailItemId: 'item-123' })
+    render(<AppLayout><span /></AppLayout>, { wrapper: Wrapper })
+    // No dialog rendered by AppLayout itself
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+})
+
+describe('AppLayout — BottomTabBar navigation', () => {
+  beforeEach(resetStore)
+
+  it('home tab has aria-current=page at /my-tasks', () => {
+    render(
+      <QueryClientProvider client={makeQC()}>
+        <MemoryRouter initialEntries={['/my-tasks']}>
+          <AppLayout><span /></AppLayout>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    expect(screen.getByTestId('tab-home')).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('home tab has aria-current=page at /', () => {
+    render(
+      <QueryClientProvider client={makeQC()}>
+        <MemoryRouter initialEntries={['/']}>
+          <AppLayout><span /></AppLayout>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    expect(screen.getByTestId('tab-home')).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('activity tab has aria-current=page at /w/:id/activity', () => {
+    render(
+      <QueryClientProvider client={makeQC()}>
+        <MemoryRouter initialEntries={['/w/ws-1/activity']}>
+          <AppLayout><span /></AppLayout>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    expect(screen.getByTestId('tab-activity')).toHaveAttribute('aria-current', 'page')
+  })
+})
+
+describe('AppLayout — activity unread dot', () => {
+  beforeEach(resetStore)
+
+  it('does not show the unread dot when unread count is 0', () => {
+    useWorkspaceActivity.mockReturnValue({ data: { items: [], unread: 0 } })
+    useStore.setState({ currentWorkspaceId: 'ws-1' })
 
     render(<AppLayout><span /></AppLayout>, { wrapper: Wrapper })
 
-    // Sheet renders a role="dialog" element
-    expect(screen.queryAllByRole('dialog').length).toBeGreaterThan(0)
+    expect(screen.queryByTestId('tab-activity-unread-dot')).not.toBeInTheDocument()
+  })
+
+  it('shows the unread dot when unread count > 0', () => {
+    useWorkspaceActivity.mockReturnValue({ data: { items: [], unread: 3 } })
+    useStore.setState({ currentWorkspaceId: 'ws-1' })
+
+    render(<AppLayout><span /></AppLayout>, { wrapper: Wrapper })
+
+    expect(screen.getByTestId('tab-activity-unread-dot')).toBeInTheDocument()
+  })
+
+  it('does not show the unread dot when no workspace is selected, even with unread data', () => {
+    useWorkspaceActivity.mockReturnValue({ data: { items: [], unread: 5 } })
+    useStore.setState({ currentWorkspaceId: null })
+
+    render(<AppLayout><span /></AppLayout>, { wrapper: Wrapper })
+
+    expect(screen.queryByTestId('tab-activity-unread-dot')).not.toBeInTheDocument()
   })
 })

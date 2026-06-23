@@ -4,30 +4,53 @@
  * Desktop (>= md):
  *   - Left: <Sidebar />
  *   - Center: <main> renders children / <Outlet />
- *   - Right: <Sheet variant="drawer"> when detailItemId is set
+ *   - Right: detail surface is now mounted by ListView (ItemDetailDrawer)
  *
  * Mobile (< md):
  *   - Sidebar hidden
- *   - <BottomTabBar /> fixed at bottom
+ *   - <BottomTabBar /> fixed at bottom with real navigation
  *   - Content full-width
- *   - Detail uses <Sheet variant="fullscreen">
+ *   - Detail surface handled by ItemDetailDrawer inside ListView
  */
 
-import { Outlet } from 'react-router-dom'
+import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useStore } from '../lib/store.js'
-import { Sheet } from '../ui/index.js'
 import { Sidebar } from './Sidebar.jsx'
 import { BottomTabBar } from './BottomTabBar.jsx'
 import { PresenceBar } from '../features/collab/PresenceBar.jsx'
-import { useState } from 'react'
+import { useWorkspaceActivity } from '../lib/api.js'
 
 export function AppLayout({ children }) {
-  const detailItemId = useStore((s) => s.detailItemId)
-  const closeDetail = useStore((s) => s.closeDetail)
+  const currentWorkspaceId = useStore((s) => s.currentWorkspaceId)
+  const navigate = useNavigate()
+  const location = useLocation()
 
-  const [activeTab, setActiveTab] = useState('home')
+  // Derive activeTab from the current path
+  const path = location.pathname
+  let activeTab = 'home'
+  if (path === '/' || path === '/my-tasks') {
+    activeTab = 'home'
+  } else if (path.endsWith('/activity')) {
+    activeTab = 'activity'
+  }
 
-  const detailOpen = Boolean(detailItemId)
+  // Activity unread dot — guard when no workspace is selected
+  const activityQuery = useWorkspaceActivity(currentWorkspaceId ?? null)
+  const activityUnread = currentWorkspaceId
+    ? (activityQuery?.data?.unread ?? 0) > 0
+    : false
+
+  function handleTabSelect(tab) {
+    if (tab === 'home') {
+      navigate('/my-tasks')
+    } else if (tab === 'activity') {
+      if (currentWorkspaceId) {
+        navigate(`/w/${currentWorkspaceId}/activity`)
+      }
+      // no-op if no workspace selected
+    }
+    // search, add, me — no-op for now (Phase later)
+  }
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-bg">
@@ -61,16 +84,6 @@ export function AppLayout({ children }) {
           {/* Support both direct children (tests/stories) and <Outlet /> (router) */}
           {children ?? <Outlet />}
         </main>
-
-        {/* Right detail — desktop drawer, hidden on mobile (mobile uses Sheet fullscreen below) */}
-        <div className="hidden md:block">
-          <Sheet
-            variant="drawer"
-            open={detailOpen}
-            onClose={closeDetail}
-            title="Detail"
-          />
-        </div>
       </div>
 
       {/* ------------------------------------------------------------------ */}
@@ -80,16 +93,10 @@ export function AppLayout({ children }) {
         data-testid="bottom-bar-container"
         className="md:hidden"
       >
-        <BottomTabBar activeTab={activeTab} onSelect={setActiveTab} />
-      </div>
-
-      {/* Mobile detail sheet — fullscreen, rendered outside the row so it covers everything */}
-      <div className="md:hidden">
-        <Sheet
-          variant="fullscreen"
-          open={detailOpen}
-          onClose={closeDetail}
-          title="Detail"
+        <BottomTabBar
+          activeTab={activeTab}
+          onSelect={handleTabSelect}
+          activityUnread={activityUnread}
         />
       </div>
     </div>

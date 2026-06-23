@@ -31,6 +31,12 @@ vi.mock('../../lib/api.js', () => ({
   useMyTasks: vi.fn(() => ({ data: [], isLoading: false })),
   useWorkspaceActivity: vi.fn(() => ({ data: { items: [], unread: 0 }, isLoading: false })),
   useMarkActivityRead: vi.fn(() => ({ mutate: vi.fn() })),
+  useListItems: vi.fn(() => ({ data: [], isLoading: false })),
+  useCreateItem: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useUpdateItem: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useItemComments: vi.fn(() => ({ data: [], isLoading: false })),
+  useCreateComment: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useDeleteComment: vi.fn(() => ({ mutate: vi.fn() })),
 }))
 
 import { useWorkspaces, useProjects } from '../../lib/api.js'
@@ -73,53 +79,28 @@ function resetStore() {
 }
 
 // ---------------------------------------------------------------------------
-// Tests — HomeView
+// Tests — Index route (/) — now renders MyTasksView
 // ---------------------------------------------------------------------------
 
-describe('routes — home (/)', () => {
+describe('routes — index (/)', () => {
   beforeEach(() => {
     resetStore()
     useWorkspaces.mockReturnValue({ data: [], isLoading: false })
   })
 
-  it('renders the HomeView at /', () => {
+  it('renders MyTasksView at / (index route is now My Tasks)', () => {
     renderAt('/')
-    expect(screen.getByTestId('home-view')).toBeInTheDocument()
-  })
-
-  it('shows welcome text when no workspaces exist', () => {
-    useWorkspaces.mockReturnValue({ data: [], isLoading: false })
-    renderAt('/')
-    const homeView = screen.getByTestId('home-view')
-    expect(homeView).toHaveTextContent('CollaborList')
-  })
-
-  it('shows "Select a workspace" heading when workspaces exist but none is selected', () => {
-    useWorkspaces.mockReturnValue({
-      data: [{ id: 'ws-1', name: 'My Workspace' }],
-      isLoading: false,
-    })
-    renderAt('/')
-    const homeView = screen.getByTestId('home-view')
-    expect(homeView).toHaveTextContent('Select a workspace')
-  })
-
-  it('renders workspace links for each workspace on home', () => {
-    useWorkspaces.mockReturnValue({
-      data: [
-        { id: 'ws-1', name: 'Workspace One' },
-        { id: 'ws-2', name: 'Workspace Two' },
-      ],
-      isLoading: false,
-    })
-    renderAt('/')
-    expect(screen.getByTestId('home-workspace-link-ws-1')).toBeInTheDocument()
-    expect(screen.getByTestId('home-workspace-link-ws-2')).toBeInTheDocument()
+    expect(screen.getByTestId('my-tasks-view')).toBeInTheDocument()
   })
 
   it('renders AppLayout (main-content area) at /', () => {
     renderAt('/')
     expect(screen.getByTestId('main-content')).toBeInTheDocument()
+  })
+
+  it('shows "My Tasks" heading at /', () => {
+    renderAt('/')
+    expect(screen.getByTestId('my-tasks-view')).toHaveTextContent('My Tasks')
   })
 })
 
@@ -325,5 +306,32 @@ describe('routes — AppLayout is always present', () => {
   it('bottom tab bar renders at /', () => {
     renderAt('/')
     expect(screen.getByTestId('bottom-tab-bar')).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Tests — ListView route (/w/:workspaceId/p/:projectId/l/:listId)
+// ---------------------------------------------------------------------------
+
+describe('routes — list (/w/:workspaceId/p/:projectId/l/:listId)', () => {
+  beforeEach(() => {
+    resetStore()
+    useWorkspaces.mockReturnValue({ data: [], isLoading: false })
+    useProjects.mockReturnValue({ data: [], isLoading: false })
+  })
+
+  it('renders list-view at /w/1/p/2/l/3', () => {
+    renderAt('/w/1/p/2/l/3')
+    expect(screen.getByTestId('list-view')).toBeInTheDocument()
+  })
+
+  it('renders inside AppLayout at the list route', () => {
+    renderAt('/w/1/p/2/l/3')
+    expect(screen.getByTestId('main-content')).toBeInTheDocument()
+  })
+
+  it('renders the add-item input (ListItems is mounted)', () => {
+    renderAt('/w/1/p/2/l/3')
+    expect(screen.getByTestId('add-item-input')).toBeInTheDocument()
   })
 })

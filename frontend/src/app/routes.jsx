@@ -19,6 +19,7 @@ import { TagManager } from '../features/tags/TagManager.jsx'
 import { MemberManager } from '../features/members/MemberManager.jsx'
 import { MyTasksView } from '../features/tasks/MyTasksView.jsx'
 import { ActivityFeed } from '../features/collab/ActivityFeed.jsx'
+import { ListView } from '../features/items/ListView.jsx'
 import { Sheet } from '../ui/Sheet.jsx'
 import { Button } from '../ui/Button.jsx'
 import { useStore } from '../lib/store.js'
@@ -310,11 +311,12 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route element={<AppLayout />}>
-        <Route index element={<HomeView />} />
+        <Route index element={<MyTasksView />} />
         <Route path="my-tasks" element={<MyTasksView />} />
         <Route path="w/:workspaceId" element={<WorkspaceView />} />
         <Route path="w/:workspaceId/activity" element={<ActivityFeedRoute />} />
         <Route path="w/:workspaceId/p/:projectId" element={<ProjectView />} />
+        <Route path="w/:workspaceId/p/:projectId/l/:listId" element={<ListView />} />
       </Route>
     </Routes>
   )
@@ -341,11 +343,12 @@ export function createAppRouter() {
       path: '/',
       element: <AppLayout />,
       children: [
-        { index: true, element: <HomeView /> },
+        { index: true, element: <MyTasksView /> },
         { path: 'my-tasks', element: <MyTasksView /> },
         { path: 'w/:workspaceId', element: <WorkspaceView /> },
         { path: 'w/:workspaceId/activity', element: <ActivityFeedRoute /> },
         { path: 'w/:workspaceId/p/:projectId', element: <ProjectView /> },
+        { path: 'w/:workspaceId/p/:projectId/l/:listId', element: <ListView /> },
       ],
     },
   ])

@@ -2,11 +2,11 @@
  * ProjectView — the main-area view rendered at /w/:workspaceId/p/:projectId.
  *
  * Reads :projectId from URL params, fetches lists via useProjectLists, and
- * renders them as read-only Cards. Item editing remains in the current app
- * (collaborlist.com) until Phase 3/4 ports list management to this shell.
+ * renders them as clickable Cards that navigate to the list route.
  */
 
 import { useParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useProjectLists } from '../../lib/api.js'
 import { Card } from '../../ui/Card.jsx'
 
@@ -22,16 +22,6 @@ export function ProjectView() {
 
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-text">Project Lists</h1>
-        <p className="mt-1 text-sm text-text-muted">
-          Viewing lists is available here. To add or edit items, use{' '}
-          <a
-            href="/"
-            className="text-primary underline underline-offset-2 hover:opacity-80"
-          >
-            the current app
-          </a>
-          {' '}— full item management is coming in Phase 3.
-        </p>
       </div>
 
       {isLoading ? (
@@ -50,14 +40,16 @@ export function ProjectView() {
         >
           {lists.map((list) => (
             <li key={list.id}>
-              <Card className="p-4" data-testid={`list-card-${list.id}`}>
-                <h2 className="text-base font-medium text-text truncate">{list.name}</h2>
-                {list.item_count !== undefined && (
-                  <p className="mt-1 text-sm text-text-muted">
-                    {list.item_count} {list.item_count === 1 ? 'item' : 'items'}
-                  </p>
-                )}
-              </Card>
+              <Link to={`/w/${workspaceId}/p/${projectId}/l/${list.id}`}>
+                <Card className="p-4" data-testid={`list-card-${list.id}`}>
+                  <h2 className="text-base font-medium text-text truncate">{list.name}</h2>
+                  {list.item_count !== undefined && (
+                    <p className="mt-1 text-sm text-text-muted">
+                      {list.item_count} {list.item_count === 1 ? 'item' : 'items'}
+                    </p>
+                  )}
+                </Card>
+              </Link>
             </li>
           ))}
         </ul>
