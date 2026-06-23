@@ -7,8 +7,13 @@ import React from 'react'
 // Mock api — we test wiring, not the real HTTP layer
 // ---------------------------------------------------------------------------
 vi.mock('../../../lib/api.js', () => ({
-  useUpdateAnyItem: vi.fn(),
-  useCreateItem:    vi.fn(),
+  useUpdateAnyItem:    vi.fn(),
+  useCreateItem:       vi.fn(),
+  // Field hooks — needed because ViewContainer now mounts FieldsManager
+  useFieldDefs:        vi.fn(),
+  useCreateFieldDef:   vi.fn(),
+  useDeleteFieldDef:   vi.fn(),
+  useApplyFieldPreset: vi.fn(),
 }))
 
 // ---------------------------------------------------------------------------
@@ -90,7 +95,14 @@ vi.mock('../ListViewLens.jsx', () => ({
   },
 }))
 
-import { useUpdateAnyItem, useCreateItem } from '../../../lib/api.js'
+import {
+  useUpdateAnyItem,
+  useCreateItem,
+  useFieldDefs,
+  useCreateFieldDef,
+  useDeleteFieldDef,
+  useApplyFieldPreset,
+} from '../../../lib/api.js'
 import { useStore } from '../../../lib/store.js'
 import { ViewContainer } from '../ViewContainer.jsx'
 
@@ -137,6 +149,11 @@ const createMutateSpy = vi.fn()
 function setupMocks() {
   useUpdateAnyItem.mockReturnValue({ mutate: updateMutateSpy, isPending: false })
   useCreateItem.mockReturnValue({ mutate: createMutateSpy, isPending: false })
+  // Field hooks — FieldsManager is conditionally mounted by ViewContainer
+  useFieldDefs.mockReturnValue({ data: [], isLoading: false })
+  useCreateFieldDef.mockReturnValue({ mutate: vi.fn(), isPending: false })
+  useDeleteFieldDef.mockReturnValue({ mutate: vi.fn(), isPending: false })
+  useApplyFieldPreset.mockReturnValue({ mutate: vi.fn(), isPending: false })
 }
 
 // Clear localStorage view prefs between tests to ensure clean state

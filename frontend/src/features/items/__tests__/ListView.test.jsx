@@ -20,6 +20,11 @@ vi.mock('../../../lib/api.js', () => ({
   useTags: vi.fn(() => ({ data: [], isLoading: false })),
   useAddItemTag: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useRemoveItemTag: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  // Field hooks — needed because ViewContainer now mounts FieldsManager
+  useFieldDefs: vi.fn(() => ({ data: [], isLoading: false })),
+  useCreateFieldDef: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useDeleteFieldDef: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useApplyFieldPreset: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
 }))
 
 import { useWorkspaceMembers, useListItems } from '../../../lib/api.js'

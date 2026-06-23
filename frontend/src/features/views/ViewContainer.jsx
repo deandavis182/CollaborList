@@ -23,6 +23,8 @@ import { BoardView } from './BoardView.jsx'
 import { CalendarView } from './CalendarView.jsx'
 import { TimelineView } from './TimelineView.jsx'
 import { SegmentedControl } from '../../ui/SegmentedControl.jsx'
+import { Button } from '../../ui/Button.jsx'
+import { FieldsManager } from '../fields/FieldsManager.jsx'
 
 const GROUP_BY_OPTIONS = [
   { value: 'none',       label: 'None' },
@@ -48,6 +50,9 @@ export function ViewContainer({
 
   // ── Board-specific local groupMode ─────────────────────────────────────────
   const [boardMode, setBoardMode] = useState('status')
+
+  // ── Fields manager open state ──────────────────────────────────────────────
+  const [fieldsOpen, setFieldsOpen] = useState(false)
 
   // ── Mutations — always called unconditionally (React rules) ────────────────
   const updateAny  = useUpdateAnyItem()
@@ -94,7 +99,7 @@ export function ViewContainer({
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div data-testid="view-container" className="flex flex-col gap-3">
-      {/* Header row: ViewSwitcher + optional group-by control */}
+      {/* Header row: ViewSwitcher + optional group-by control + Fields button */}
       <div className="flex items-center gap-4 flex-wrap">
         <ViewSwitcher view={view} onChange={setView} />
 
@@ -106,7 +111,27 @@ export function ViewContainer({
             onChange={setGroupBy}
           />
         )}
+
+        {listId != null && (
+          <Button
+            variant="secondary"
+            size="sm"
+            data-testid="open-fields-btn"
+            onClick={() => setFieldsOpen(true)}
+          >
+            Fields
+          </Button>
+        )}
       </div>
+
+      {/* Fields manager sheet — only rendered when listId is present */}
+      {listId != null && (
+        <FieldsManager
+          listId={listId}
+          open={fieldsOpen}
+          onClose={() => setFieldsOpen(false)}
+        />
+      )}
 
       {/* Active lens */}
       {view === 'list' && (
