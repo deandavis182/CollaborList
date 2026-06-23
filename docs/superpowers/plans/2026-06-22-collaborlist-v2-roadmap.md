@@ -149,12 +149,20 @@ on List rows. Socket event `field-updated`. No new migration (schema from mig 00
 Minor follow-ups (non-blocking): dead `budget.unit` in rollups.js; items-enrichment integ tests assert the SQL
 not the HTTP endpoint. No formulas/relations/per-field perms (out of scope).
 
-### ⬜ Phase 6 — PWA + Notifications
-Spec §7. **Plan:** TBW. Vite PWA plugin (service worker + manifest + install; offline shell);
-Web Push via `web-push` + VAPID env keys; `push_subscriptions` flow; deep-link from notification to
-item; in-process **reminder engine** (`jobs/reminders.js`, ~15-min interval, `reminder_sent` guard);
-`notification_prefs` (categories + mute-project + quiet hours). iOS: web push requires installed PWA
-(16.4+) — onboarding must make install explicit. No email/digest.
+### ✅ Phase 6 — PWA + Web Push — DONE (merged to main 2026-06-23, merge commit `4ccc78a`; HEAD `fa24bf4`)
+Spec §7. **Plan:** `2026-06-23-collaborlist-v2-phase6-pwa-push.md`. Installable PWA (vite-plugin-pwa injectManifest:
+manifest + brand icons + custom `sw.js` with push/notificationclick deep-link handlers). Web Push: `pushService`
+(web-push wrapper, VAPID no-op fallback at boot+send, prune 410/404), `prefsService`, `notificationService`
+(prefs-aware: category/mute-project/quiet-hours), `routes/push.js` (subscribe/unsubscribe/prefs), assignment +
+mention + comment-watcher triggers wired best-effort into server.js/comments.js, in-process `jobs/reminders.js`
+(~15-min sweep, reminder_sent guard, reset on due_date change, boot-guarded + push-disabled no-op).
+`notification_prefs` UI (4 category toggles + quiet hours; per-project mute = data layer only, UI deferred).
+NO migration (push_subscriptions/notification_prefs from mig 010, reminder_sent from mig 011). 10 tasks,
+each task-reviewed (T1+T5+T10 had fix waves); whole-branch review: Ready to merge, no Critical/Important.
+BE 94 unit + 123 integration, FE 1102 green. Live-verified: SW registers + manifest installs + prefs CRUD
+round-trips + backend boots safely without VAPID keys. OUT OF SCOPE: offline write-queue (read-side precache only).
+**Pre-deploy (user):** `npx web-push generate-vapid-keys` → set VAPID_PUBLIC_KEY/PRIVATE_KEY/SUBJECT in prod .env
+(documented in .env.production.example + wired in all compose files); test push on wife's iPhone (installed PWA, iOS 16.4+).
 
 ### ⬜ Phase 7 — Cut-line Extras (optional, last)
 **Plan:** TBW. File/photo attachments (needs storage infra) and automations/recurring tasks (rules
