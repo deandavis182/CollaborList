@@ -15,7 +15,7 @@
 
 import { useState } from 'react'
 import { useViewPref } from '../../lib/useViewPref.js'
-import { useUpdateAnyItem, useCreateItem } from '../../lib/api.js'
+import { useUpdateAnyItem, useCreateItem, useFieldDefs } from '../../lib/api.js'
 import { useStore } from '../../lib/store.js'
 import { ViewSwitcher } from './ViewSwitcher.jsx'
 import { ListViewLens } from './ListViewLens.jsx'
@@ -25,6 +25,7 @@ import { TimelineView } from './TimelineView.jsx'
 import { SegmentedControl } from '../../ui/SegmentedControl.jsx'
 import { Button } from '../../ui/Button.jsx'
 import { FieldsManager } from '../fields/FieldsManager.jsx'
+import { FieldRollups } from '../fields/FieldRollups.jsx'
 
 const GROUP_BY_OPTIONS = [
   { value: 'none',       label: 'None' },
@@ -53,6 +54,9 @@ export function ViewContainer({
 
   // ── Fields manager open state ──────────────────────────────────────────────
   const [fieldsOpen, setFieldsOpen] = useState(false)
+
+  // ── Field defs — enabled only when listId is present (hook guards internally) ─
+  const { data: fieldDefs = [] } = useFieldDefs(listId)
 
   // ── Mutations — always called unconditionally (React rules) ────────────────
   const updateAny  = useUpdateAnyItem()
@@ -135,14 +139,18 @@ export function ViewContainer({
 
       {/* Active lens */}
       {view === 'list' && (
-        <ListViewLens
-          items={items}
-          members={members}
-          groupBy={groupBy}
-          onToggleComplete={onToggleComplete}
-          onOpen={onOpen}
-          onAddItem={addItemHandler}
-        />
+        <>
+          <ListViewLens
+            items={items}
+            members={members}
+            fieldDefs={fieldDefs}
+            groupBy={groupBy}
+            onToggleComplete={onToggleComplete}
+            onOpen={onOpen}
+            onAddItem={addItemHandler}
+          />
+          <FieldRollups fieldDefs={fieldDefs} items={items} />
+        </>
       )}
 
       {view === 'board' && (
