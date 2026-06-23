@@ -55,20 +55,29 @@ export function Sidebar() {
         </Link>
       </div>
 
-      {/* Workspace Switcher */}
-      <div className="px-4 py-3 border-b border-border">
-        <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
-          Workspaces
-        </p>
-        <WorkspaceSwitcher />
-      </div>
+      {/* Workspace + Projects — rendered as a single nested tree so the
+          hierarchy is legible: Workspace (root) ▸ Projects ▸ Lists */}
+      <div className="flex-1 overflow-y-auto">
+        {/* Level 1 — Workspace (root label + switcher) */}
+        <div className="px-4 pt-3 pb-1">
+          <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
+            Workspace
+          </p>
+          {/* WorkspaceSwitcher items are visually at level 1 (no extra indent) */}
+          <WorkspaceSwitcher />
+        </div>
 
-      {/* Projects for Current Workspace */}
-      <div className="flex-1 px-4 py-3">
-        <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
-          Projects
-        </p>
-        <ProjectList />
+        {/* Level 2 + 3 — Projects (and their nested Lists) indented under the
+            active workspace.  ProjectList renders level-2 items; each active
+            project expands to show level-3 list items via ProjectListTree. */}
+        <div className="pb-3">
+          <p className="pl-6 pr-4 pt-2 pb-1 text-xs font-semibold text-text-muted uppercase tracking-wider">
+            Projects
+          </p>
+          <div className="px-4">
+            <ProjectList />
+          </div>
+        </div>
       </div>
     </nav>
   )

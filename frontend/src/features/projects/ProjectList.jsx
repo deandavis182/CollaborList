@@ -5,6 +5,10 @@
  * currentProjectId via aria-current. Includes a "+ New project" action that
  * opens CreateProjectDialog.
  *
+ * When a project is active its lists are rendered nested beneath it via
+ * ProjectListTree, forming the third level of the Workspace ▸ Project ▸ List
+ * hierarchy.
+ *
  * Props: none (reads currentWorkspaceId and currentProjectId from store).
  */
 
@@ -14,6 +18,7 @@ import { useProjects } from '../../lib/api.js'
 import { useStore } from '../../lib/store.js'
 import { Button } from '../../ui/Button.jsx'
 import { CreateProjectDialog } from './CreateProjectDialog.jsx'
+import { ProjectListTree } from './ProjectListTree.jsx'
 
 export function ProjectList() {
   const currentWorkspaceId = useStore((s) => s.currentWorkspaceId)
@@ -48,14 +53,19 @@ export function ProjectList() {
                   aria-current={isActive ? 'page' : undefined}
                   onClick={() => setCurrentProject(proj.id)}
                   className={[
-                    'block w-full px-3 py-2 rounded-md text-sm transition-colors',
+                    // Level-2 indent: pl-6 (workspace=0, project=pl-6, list=pl-10)
+                    'flex items-center gap-1.5 w-full pl-6 pr-3 py-1.5 rounded-md text-sm transition-colors',
                     isActive
                       ? 'bg-surface-2 text-text font-medium'
                       : 'text-text-muted hover:bg-surface-2 hover:text-text',
                   ].join(' ')}
                 >
-                  {proj.name}
+                  {/* Project-level glyph — right-pointing triangle */}
+                  <span aria-hidden="true" className="shrink-0 text-xs opacity-60">▸</span>
+                  <span className="truncate">{proj.name}</span>
                 </Link>
+                {/* Nested list tree — only shown for the active project */}
+                {isActive && <ProjectListTree />}
               </li>
             )
           })}

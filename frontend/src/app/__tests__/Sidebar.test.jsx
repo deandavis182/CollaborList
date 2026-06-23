@@ -16,9 +16,19 @@ vi.mock('../../lib/api.js', () => ({
   useProjects: vi.fn(),
   useCreateProject: vi.fn(),
   useWorkspaceActivity: vi.fn(),
+  useProjectLists: vi.fn(),
+  useCreateList: vi.fn(),
 }))
 
-import { useWorkspaces, useCreateWorkspace, useProjects, useCreateProject, useWorkspaceActivity } from '../../lib/api.js'
+import {
+  useWorkspaces,
+  useCreateWorkspace,
+  useProjects,
+  useCreateProject,
+  useWorkspaceActivity,
+  useProjectLists,
+  useCreateList,
+} from '../../lib/api.js'
 import { useStore } from '../../lib/store.js'
 import { Sidebar } from '../Sidebar.jsx'
 
@@ -55,6 +65,8 @@ describe('Sidebar — workspaces (via WorkspaceSwitcher)', () => {
     resetStore()
     useProjects.mockReturnValue({ data: [], isLoading: false })
     useWorkspaceActivity.mockReturnValue({ data: { items: [], unread: 0 } })
+    useProjectLists.mockReturnValue({ data: [], isLoading: false })
+    useCreateList.mockReturnValue({ mutate: vi.fn() })
     useCreateWorkspace.mockReturnValue({
       mutate: vi.fn(),
       isPending: false,
@@ -156,6 +168,8 @@ describe('Sidebar — My Tasks nav link', () => {
     useWorkspaces.mockReturnValue({ data: [], isLoading: false })
     useProjects.mockReturnValue({ data: [], isLoading: false })
     useWorkspaceActivity.mockReturnValue({ data: { items: [], unread: 0 } })
+    useProjectLists.mockReturnValue({ data: [], isLoading: false })
+    useCreateList.mockReturnValue({ mutate: vi.fn() })
     useCreateWorkspace.mockReturnValue({
       mutate: vi.fn(),
       isPending: false,
@@ -192,6 +206,8 @@ describe('Sidebar — projects', () => {
     resetStore()
     useStore.setState({ currentWorkspaceId: 5 })
     useWorkspaceActivity.mockReturnValue({ data: { items: [], unread: 0 } })
+    useProjectLists.mockReturnValue({ data: [], isLoading: false })
+    useCreateList.mockReturnValue({ mutate: vi.fn() })
     useCreateWorkspace.mockReturnValue({
       mutate: vi.fn(),
       isPending: false,
@@ -259,6 +275,8 @@ describe('Sidebar — Activity nav link', () => {
     resetStore()
     useWorkspaces.mockReturnValue({ data: [], isLoading: false })
     useProjects.mockReturnValue({ data: [], isLoading: false })
+    useProjectLists.mockReturnValue({ data: [], isLoading: false })
+    useCreateList.mockReturnValue({ mutate: vi.fn() })
     useCreateWorkspace.mockReturnValue({
       mutate: vi.fn(),
       isPending: false,
@@ -328,5 +346,176 @@ describe('Sidebar — Activity nav link', () => {
 
     render(<Sidebar />, { wrapper: Wrapper })
     expect(screen.queryByTestId('activity-unread-dot')).not.toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Sidebar — nested list tree (ProjectListTree)
+// ---------------------------------------------------------------------------
+
+describe('Sidebar — nested list tree under active project', () => {
+  const WS_ID = 10
+  const PROJ_ID = 'proj-A'
+
+  function setupBase() {
+    resetStore()
+    useStore.setState({ currentWorkspaceId: WS_ID, currentProjectId: PROJ_ID })
+    useWorkspaces.mockReturnValue({
+      data: [{ id: WS_ID, name: 'My WS', role: 'owner' }],
+      isLoading: false,
+    })
+    useWorkspaceActivity.mockReturnValue({ data: { items: [], unread: 0 } })
+    useCreateWorkspace.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null })
+    useCreateProject.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null })
+    useCreateList.mockReturnValue({ mutate: vi.fn() })
+  }
+
+  it('renders nested list links under the active project', () => {
+    useProjects.mockReturnValue({
+      data: [{ id: PROJ_ID, name: 'Alpha' }],
+      isLoading: false,
+    })
+    useProjectLists.mockReturnValue({
+      data: [
+        { id: 'l1', name: 'Sprint 1' },
+        { id: 'l2', name: 'Backlog' },
+      ],
+      isLoading: false,
+    })
+    setupBase()
+
+    render(<Sidebar />, { wrapper: Wrapper })
+
+    expect(screen.getByTestId('sidebar-list-l1')).toBeInTheDocument()
+    expect(screen.getByTestId('sidebar-list-l2')).toBeInTheDocument()
+    expect(screen.getByText('Sprint 1')).toBeInTheDocument()
+    expect(screen.getByText('Backlog')).toBeInTheDocument()
+  })
+
+  it('list links point to /w/:wsId/p/:projId/l/:listId', () => {
+    useProjects.mockReturnValue({
+      data: [{ id: PROJ_ID, name: 'Alpha' }],
+      isLoading: false,
+    })
+    useProjectLists.mockReturnValue({
+      data: [{ id: 'l99', name: 'My List' }],
+      isLoading: false,
+    })
+    setupBase()
+
+    render(<Sidebar />, { wrapper: Wrapper })
+
+    const link = screen.getByTestId('sidebar-list-l99')
+    expect(link).toHaveAttribute('href', `/w/${WS_ID}/p/${PROJ_ID}/l/l99`)
+  })
+
+  it('does NOT render list links when no project is active', () => {
+    useProjects.mockReturnValue({
+      data: [{ id: PROJ_ID, name: 'Alpha' }],
+      isLoading: false,
+    })
+    useProjectLists.mockReturnValue({
+      data: [{ id: 'l1', name: 'Sprint 1' }],
+      isLoading: false,
+    })
+    setupBase()
+    useStore.setState({ currentProjectId: null })
+
+    render(<Sidebar />, { wrapper: Wrapper })
+
+    expect(screen.queryByTestId('sidebar-list-l1')).not.toBeInTheDocument()
+  })
+
+  it('shows "No lists yet" hint when active project has no lists', () => {
+    useProjects.mockReturnValue({
+      data: [{ id: PROJ_ID, name: 'Alpha' }],
+      isLoading: false,
+    })
+    useProjectLists.mockReturnValue({ data: [], isLoading: false })
+    setupBase()
+
+    render(<Sidebar />, { wrapper: Wrapper })
+
+    expect(screen.getByTestId('no-lists-hint')).toBeInTheDocument()
+    expect(screen.getByText('No lists yet')).toBeInTheDocument()
+  })
+
+  it('shows "+ New list" button and clicking it reveals the inline input', () => {
+    useProjects.mockReturnValue({
+      data: [{ id: PROJ_ID, name: 'Alpha' }],
+      isLoading: false,
+    })
+    useProjectLists.mockReturnValue({ data: [], isLoading: false })
+    setupBase()
+
+    render(<Sidebar />, { wrapper: Wrapper })
+
+    // The button starts as the "New list" trigger
+    const newListBtn = screen.getByTestId('sidebar-new-list-button')
+    expect(newListBtn).toBeInTheDocument()
+    fireEvent.click(newListBtn)
+
+    // After click, the inline input should appear
+    expect(screen.getByTestId('sidebar-new-list-input')).toBeInTheDocument()
+  })
+
+  it('pressing Enter in the new-list input calls createList.mutate with the name', () => {
+    const mutateMock = vi.fn()
+    // setupBase must run first — it sets useCreateList to a generic stub;
+    // we then override with our tracked mock after.
+    useProjects.mockReturnValue({
+      data: [{ id: PROJ_ID, name: 'Alpha' }],
+      isLoading: false,
+    })
+    useProjectLists.mockReturnValue({ data: [], isLoading: false })
+    setupBase()
+    useCreateList.mockReturnValue({ mutate: mutateMock })
+
+    render(<Sidebar />, { wrapper: Wrapper })
+
+    fireEvent.click(screen.getByTestId('sidebar-new-list-button'))
+    const input = screen.getByTestId('sidebar-new-list-input')
+    fireEvent.change(input, { target: { value: 'Design Assets' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(mutateMock).toHaveBeenCalledWith({ name: 'Design Assets' })
+  })
+
+  it('active project is marked with aria-current and indented (project-item testid preserved)', () => {
+    useProjects.mockReturnValue({
+      data: [
+        { id: PROJ_ID, name: 'Alpha' },
+        { id: 'proj-B', name: 'Beta' },
+      ],
+      isLoading: false,
+    })
+    useProjectLists.mockReturnValue({ data: [], isLoading: false })
+    setupBase()
+
+    render(<Sidebar />, { wrapper: Wrapper })
+
+    expect(screen.getByTestId(`project-item-${PROJ_ID}`)).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByTestId('project-item-proj-B')).not.toHaveAttribute('aria-current')
+  })
+
+  it('My Tasks + Activity nav links remain present (no regression)', () => {
+    useProjects.mockReturnValue({ data: [], isLoading: false })
+    useProjectLists.mockReturnValue({ data: [], isLoading: false })
+    setupBase()
+
+    render(<Sidebar />, { wrapper: Wrapper })
+
+    expect(screen.getByTestId('nav-my-tasks')).toBeInTheDocument()
+    expect(screen.getByTestId('nav-activity')).toBeInTheDocument()
+  })
+
+  it('WorkspaceSwitcher remains present (no regression)', () => {
+    useProjects.mockReturnValue({ data: [], isLoading: false })
+    useProjectLists.mockReturnValue({ data: [], isLoading: false })
+    setupBase()
+
+    render(<Sidebar />, { wrapper: Wrapper })
+
+    expect(screen.getByTestId('workspace-switcher')).toBeInTheDocument()
   })
 })

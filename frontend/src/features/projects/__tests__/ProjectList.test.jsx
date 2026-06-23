@@ -10,9 +10,11 @@ import React from 'react'
 vi.mock('../../../lib/api.js', () => ({
   useProjects: vi.fn(),
   useCreateProject: vi.fn(),
+  useProjectLists: vi.fn(),
+  useCreateList: vi.fn(),
 }))
 
-import { useProjects, useCreateProject } from '../../../lib/api.js'
+import { useProjects, useCreateProject, useProjectLists, useCreateList } from '../../../lib/api.js'
 import { useStore } from '../../../lib/store.js'
 import { ProjectList } from '../ProjectList.jsx'
 
@@ -53,6 +55,11 @@ describe('ProjectList', () => {
       isError: false,
       error: null,
     })
+    // ProjectList renders ProjectListTree under the active project, which
+    // calls these hooks. Provide safe defaults so tests that don't care about
+    // the list tree still pass.
+    useProjectLists.mockReturnValue({ data: [], isLoading: false })
+    useCreateList.mockReturnValue({ mutate: vi.fn() })
   })
 
   it('shows "Select a workspace" when no workspace is selected', () => {
