@@ -117,9 +117,10 @@ describe('ItemDetailDrawer', () => {
     const todoButton = screen.getByRole('button', { name: 'To do' })
     expect(todoButton).toHaveAttribute('aria-pressed', 'true')
 
-    // Assignee — select reflects alice (user_id 7)
-    const select = screen.getByRole('combobox')
-    expect(select.value).toBe('7')
+    // Assignee — select reflects alice (user_id 7); use getAllByRole because
+    // RecurrencePicker adds a second combobox; assignee is the first one
+    const [assigneeSelect] = screen.getAllByRole('combobox')
+    expect(assigneeSelect.value).toBe('7')
 
     // Due date input — formatted to YYYY-MM-DD
     const dateInput = screen.getByDisplayValue('2026-06-30')
@@ -147,8 +148,9 @@ describe('ItemDetailDrawer', () => {
 
     render(<ItemDetailDrawer listId="list-1" workspaceId="ws-1" />, { wrapper: Wrapper })
 
-    const select = screen.getByRole('combobox')
-    fireEvent.change(select, { target: { value: '8' } })
+    // Assignee select is first combobox; RecurrencePicker adds a second one
+    const [assigneeSelect] = screen.getAllByRole('combobox')
+    fireEvent.change(assigneeSelect, { target: { value: '8' } })
 
     expect(mutateSpy).toHaveBeenCalledWith({ id: 42, assignee_id: 8 })
   })
@@ -158,8 +160,9 @@ describe('ItemDetailDrawer', () => {
 
     render(<ItemDetailDrawer listId="list-1" workspaceId="ws-1" />, { wrapper: Wrapper })
 
-    const select = screen.getByRole('combobox')
-    fireEvent.change(select, { target: { value: '' } })
+    // Assignee select is first combobox; RecurrencePicker adds a second one
+    const [assigneeSelect] = screen.getAllByRole('combobox')
+    fireEvent.change(assigneeSelect, { target: { value: '' } })
 
     expect(mutateSpy).toHaveBeenCalledWith({ id: 42, assignee_id: null })
   })

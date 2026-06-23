@@ -316,4 +316,61 @@ describe('ListItems', () => {
     expect(screen.getByTestId('item-tag-tag-x')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
   })
+
+  // ---- recurrence chip on rows ----
+  it('renders recur chip when item has recur_unit and recur_interval', () => {
+    setupDefaultMocks({
+      items: [
+        {
+          id: 'i1',
+          text: 'Recurring task',
+          completed: false,
+          recur_unit: 'week',
+          recur_interval: 1,
+        },
+      ],
+    })
+
+    render(<ListItems listId="list-1" />, { wrapper: Wrapper })
+
+    expect(screen.getByTestId('item-recur-i1')).toBeInTheDocument()
+    expect(screen.getByText('🔁 every 1 week')).toBeInTheDocument()
+  })
+
+  it('renders recur chip with plural unit when recur_interval > 1', () => {
+    setupDefaultMocks({
+      items: [
+        {
+          id: 'i2',
+          text: 'Recurring bi-weekly',
+          completed: false,
+          recur_unit: 'month',
+          recur_interval: 2,
+        },
+      ],
+    })
+
+    render(<ListItems listId="list-1" />, { wrapper: Wrapper })
+
+    expect(screen.getByTestId('item-recur-i2')).toBeInTheDocument()
+    expect(screen.getByText('🔁 every 2 months')).toBeInTheDocument()
+  })
+
+  it('does NOT render recur chip when recur_unit is absent', () => {
+    setupDefaultMocks({
+      items: [
+        {
+          id: 'i3',
+          text: 'Non-recurring task',
+          completed: false,
+          recur_unit: null,
+          recur_interval: null,
+        },
+      ],
+    })
+
+    render(<ListItems listId="list-1" />, { wrapper: Wrapper })
+
+    expect(screen.queryByTestId('item-recur-i3')).not.toBeInTheDocument()
+  })
 })

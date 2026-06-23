@@ -111,6 +111,16 @@ export function ItemRow({ item, depth = 0, members = [], fieldDefs = [], onToggl
         </Chip>
       )}
 
+      {/* Recurrence chip */}
+      {item.recur_unit && item.recur_interval && (
+        <Chip
+          data-testid={`item-recur-${item.id}`}
+          color="neutral"
+        >
+          {`🔁 every ${item.recur_interval} ${item.recur_unit}${item.recur_interval > 1 ? 's' : ''}`}
+        </Chip>
+      )}
+
       {/* Tag chips — read-only */}
       {Array.isArray(item.tags) && item.tags.length > 0 && (
         item.tags.map((tag) => (
