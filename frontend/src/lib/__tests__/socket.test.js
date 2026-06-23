@@ -252,10 +252,34 @@ describe('registerSocketHandlers — item events', () => {
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['items', 7] })
   })
 
+  it('item-created also invalidates ["projectItems"]', () => {
+    registerSocketHandlers(socket, queryClient)
+    socket.emit('item-created', { listId: 7, item: { id: 1 } })
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['projectItems'] })
+  })
+
+  it('item-created also invalidates ["myTasks"]', () => {
+    registerSocketHandlers(socket, queryClient)
+    socket.emit('item-created', { listId: 7, item: { id: 1 } })
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['myTasks'] })
+  })
+
   it('item-updated invalidates ["items", listId]', () => {
     registerSocketHandlers(socket, queryClient)
     socket.emit('item-updated', { listId: 3, item: { id: 2 } })
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['items', 3] })
+  })
+
+  it('item-updated also invalidates ["projectItems"]', () => {
+    registerSocketHandlers(socket, queryClient)
+    socket.emit('item-updated', { listId: 3, item: { id: 2 } })
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['projectItems'] })
+  })
+
+  it('item-updated also invalidates ["myTasks"]', () => {
+    registerSocketHandlers(socket, queryClient)
+    socket.emit('item-updated', { listId: 3, item: { id: 2 } })
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['myTasks'] })
   })
 
   it('item-deleted invalidates ["items", listId]', () => {
@@ -264,12 +288,31 @@ describe('registerSocketHandlers — item events', () => {
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['items', 9] })
   })
 
+  it('item-deleted also invalidates ["projectItems"]', () => {
+    registerSocketHandlers(socket, queryClient)
+    socket.emit('item-deleted', { listId: 9, itemId: 5 })
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['projectItems'] })
+  })
+
+  it('item-deleted also invalidates ["myTasks"]', () => {
+    registerSocketHandlers(socket, queryClient)
+    socket.emit('item-deleted', { listId: 9, itemId: 5 })
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['myTasks'] })
+  })
+
   it('item-created does not throw on missing listId', () => {
     registerSocketHandlers(socket, queryClient)
     expect(() => socket.emit('item-created', {})).not.toThrow()
     expect(queryClient.invalidateQueries).not.toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: ['items', undefined] })
     )
+  })
+
+  it('item-created with missing listId still invalidates ["projectItems"] and ["myTasks"]', () => {
+    registerSocketHandlers(socket, queryClient)
+    socket.emit('item-created', {})
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['projectItems'] })
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['myTasks'] })
   })
 
   it('item-created does not throw on null payload', () => {

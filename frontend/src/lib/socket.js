@@ -123,18 +123,30 @@ export function registerSocketHandlers(socket, queryClient) {
   // ------------------------------------------------------------------
 
   const onItemCreated = (payload) => {
-    if (payload?.listId == null) return
-    queryClient.invalidateQueries({ queryKey: ['items', payload.listId] })
+    if (payload == null) return
+    if (payload.listId != null) {
+      queryClient.invalidateQueries({ queryKey: ['items', payload.listId] })
+    }
+    queryClient.invalidateQueries({ queryKey: ['projectItems'] })
+    queryClient.invalidateQueries({ queryKey: ['myTasks'] })
   }
 
   const onItemUpdated = (payload) => {
-    if (payload?.listId == null) return
-    queryClient.invalidateQueries({ queryKey: ['items', payload.listId] })
+    if (payload == null) return
+    if (payload.listId != null) {
+      queryClient.invalidateQueries({ queryKey: ['items', payload.listId] })
+    }
+    queryClient.invalidateQueries({ queryKey: ['projectItems'] })
+    queryClient.invalidateQueries({ queryKey: ['myTasks'] })
   }
 
   const onItemDeleted = (payload) => {
-    if (payload?.listId == null) return
-    queryClient.invalidateQueries({ queryKey: ['items', payload.listId] })
+    if (payload == null) return
+    if (payload.listId != null) {
+      queryClient.invalidateQueries({ queryKey: ['items', payload.listId] })
+    }
+    queryClient.invalidateQueries({ queryKey: ['projectItems'] })
+    queryClient.invalidateQueries({ queryKey: ['myTasks'] })
   }
 
   // ------------------------------------------------------------------
