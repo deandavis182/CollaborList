@@ -331,6 +331,176 @@ export function useRemoveMember(workspaceId) {
   })
 }
 
+// ---------------------------------------------------------------------------
+// Item hooks
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch all items for a list.
+ * Only enabled when listId is truthy.
+ */
+export function useListItems(listId) {
+  return useQuery({
+    queryKey: ['items', listId],
+    queryFn: async () => {
+      const { data } = await apiClient.get(`/lists/${listId}/items`)
+      return data
+    },
+    enabled: Boolean(listId),
+  })
+}
+
+/**
+ * Create a new item in a list with optimistic update.
+ * mutationFn receives { text, parent_id?, status?, assignee_id?, due_date? }.
+ * Optimistic: appends a temp item to ['items', listId] cache.
+ * Rollback on error; onSettled invalidates ['items', listId].
+ */
+export function useCreateItem(listId) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ text, parent_id, status, assignee_id, due_date }) => {
+      const { data } = await apiClient.post(`/lists/${listId}/items`, {
+        text,
+        ...(parent_id !== undefined && { parent_id }),
+        ...(status !== undefined && { status }),
+        ...(assignee_id !== undefined && { assignee_id }),
+        ...(due_date !== undefined && { due_date }),
+      })
+      return data
+    },
+
+    onMutate: async ({ text, parent_id, status, assignee_id, due_date }) => {
+      const queryKey = ['items', listId]
+
+      await queryClient.cancelQueries({ queryKey })
+
+      const previousItems = queryClient.getQueryData(queryKey)
+
+      const tempItem = {
+        id: `temp-${Date.now()}`,
+        list_id: listId,
+        text,
+        completed: false,
+        status: status ?? 'To do',
+        ...(parent_id !== undefined && { parent_id }),
+        ...(assignee_id !== undefined && { assignee_id }),
+        ...(due_date !== undefined && { due_date }),
+        created_at: new Date().toISOString(),
+      }
+
+      queryClient.setQueryData(queryKey, (old) => {
+        const list = old ?? []
+        return [...list, tempItem]
+      })
+
+      return { previousItems }
+    },
+
+    onError: (_err, _variables, context) => {
+      if (context?.previousItems !== undefined) {
+        queryClient.setQueryData(['items', listId], context.previousItems)
+      }
+    },
+
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['items', listId] })
+    },
+  })
+}
+
+/**
+ * Update an existing item with optimistic update.
+ * mutationFn receives { id, ...fields } where fields may include
+ * text, completed, status, assignee_id, due_date, notes, position, parent_id.
+ * Optimistic: merges fields into the matching cached item using String(id) coercion.
+ * Rollback on error; onSettled invalidates ['items', listId].
+ */
+export function useUpdateItem(listId) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, ...fields }) => {
+      const { data } = await apiClient.put(`/items/${id}`, fields)
+      return data
+    },
+
+    onMutate: async ({ id, ...fields }) => {
+      const queryKey = ['items', listId]
+
+      await queryClient.cancelQueries({ queryKey })
+
+      const previousItems = queryClient.getQueryData(queryKey)
+
+      queryClient.setQueryData(queryKey, (old) => {
+        if (!old) return old
+        return old.map((item) =>
+          String(item.id) === String(id) ? { ...item, ...fields } : item
+        )
+      })
+
+      return { previousItems }
+    },
+
+    onError: (_err, _variables, context) => {
+      if (context?.previousItems !== undefined) {
+        queryClient.setQueryData(['items', listId], context.previousItems)
+      }
+    },
+
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['items', listId] })
+    },
+  })
+}
+
+/**
+ * Delete an item with optimistic removal.
+ * mutationFn receives the item id.
+ * Optimistic: removes the item from ['items', listId] cache using String(id) coercion.
+ * Rollback on error; onSettled invalidates ['items', listId].
+ */
+export function useDeleteItem(listId) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id) => {
+      const { data } = await apiClient.delete(`/items/${id}`)
+      return data
+    },
+
+    onMutate: async (id) => {
+      const queryKey = ['items', listId]
+
+      await queryClient.cancelQueries({ queryKey })
+
+      const previousItems = queryClient.getQueryData(queryKey)
+
+      queryClient.setQueryData(queryKey, (old) => {
+        if (!old) return old
+        return old.filter((item) => String(item.id) !== String(id))
+      })
+
+      return { previousItems }
+    },
+
+    onError: (_err, _variables, context) => {
+      if (context?.previousItems !== undefined) {
+        queryClient.setQueryData(['items', listId], context.previousItems)
+      }
+    },
+
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['items', listId] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Project hooks (continued)
+// ---------------------------------------------------------------------------
+
 /**
  * Create a new project in a workspace with optimistic update.
  */
