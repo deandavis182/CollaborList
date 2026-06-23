@@ -139,10 +139,15 @@ fixed via shared `lib/dates.js` (`parseLocalDay/formatDay/daysUntil`) swept acro
   `items-refresh` handler (add when cross-list drag lands); consolidate the tag hex→Chip-color map (now duplicated 4×);
   auto-select the sole workspace for new users (minor UX); delete dead `ListItems.jsx`.
 
-### ⬜ Phase 5 — Structured Fields
-Spec §5. **Plan:** TBW. `field_defs` per list + `item_fields` values (number/text/date/status/person);
-footer roll-ups (Σ/paid/remaining; headcount); two starter presets ("Budget tracker", "Guest list");
-inline rendering in List/Board/detail. New socket event: `field-updated`. No formulas/relations/per-field perms.
+### ✅ Phase 5 — Structured Fields — DONE (merged to main 2026-06-23, merge commit `939c33d`; HEAD `3c0e104`)
+Spec §5. **Plan:** `2026-06-23-collaborlist-v2-phase5-fields.md`. `field_defs` per list + `item_fields` values
+(number/text/date/status/person); footer roll-ups (Σ/budget total-paid-remaining; guest invited-confirmed);
+two starter presets ("Budget tracker", "Guest list"); typed inputs in detail drawer + inline read-only cells
+on List rows. Socket event `field-updated`. No new migration (schema from mig 007 — additive only).
+6 tasks, each task-reviewed; whole-branch review: Ready to merge, no Critical/Important. FE 1064 + BE 74 unit /
+109 integration green. Live Playwright E2E confirmed budget ($8000/$5000/$3000) + guest (Invited 7/Confirmed 4).
+Minor follow-ups (non-blocking): dead `budget.unit` in rollups.js; items-enrichment integ tests assert the SQL
+not the HTTP endpoint. No formulas/relations/per-field perms (out of scope).
 
 ### ⬜ Phase 6 — PWA + Notifications
 Spec §7. **Plan:** TBW. Vite PWA plugin (service worker + manifest + install; offline shell);
