@@ -166,7 +166,7 @@ function groupByTag(items) {
  * GroupSection — renders a collapsible group header + its item rows.
  * collapsed state is lifted to the parent via the collapsedKeys Set.
  */
-function GroupSection({ group, members, onToggleComplete, onOpen, isCollapsed, onToggleCollapse }) {
+function GroupSection({ group, members, fieldDefs, onToggleComplete, onOpen, isCollapsed, onToggleCollapse }) {
   return (
     <div data-testid={`groupsection-${group.key}`} className="mb-2">
       <button
@@ -194,6 +194,7 @@ function GroupSection({ group, members, onToggleComplete, onOpen, isCollapsed, o
                 item={item}
                 depth={0}
                 members={members}
+                fieldDefs={fieldDefs}
                 onToggleComplete={onToggleComplete}
                 onOpen={onOpen}
               />
@@ -210,6 +211,7 @@ function GroupSection({ group, members, onToggleComplete, onOpen, isCollapsed, o
 export function ListViewLens({
   items = [],
   members = [],
+  fieldDefs = [],
   groupBy = 'none',
   onToggleComplete,
   onOpen,
@@ -262,6 +264,7 @@ export function ListViewLens({
               key={group.key}
               group={group}
               members={members}
+              fieldDefs={fieldDefs}
               onToggleComplete={onToggleComplete}
               onOpen={onOpen}
               isCollapsed={collapsedKeys.has(group.key)}
@@ -313,6 +316,7 @@ export function ListViewLens({
                 item={item}
                 depth={depthMap[String(item.id)] ?? 0}
                 members={members}
+                fieldDefs={fieldDefs}
                 onToggleComplete={onToggleComplete}
                 onOpen={onOpen}
               />

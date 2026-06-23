@@ -1,9 +1,10 @@
 import { render, screen, fireEvent, within } from '@testing-library/react'
 import { ListViewLens } from '../ListViewLens.jsx'
 
-// Minimal stub for ItemRow to isolate ListViewLens behaviour
+// Minimal stub for ItemRow to isolate ListViewLens behaviour.
+// Forwards fieldDefs so that field-cell tests work without the real ItemFieldCells.
 vi.mock('../../items/ItemRow.jsx', () => ({
-  ItemRow: ({ item, onToggleComplete, onOpen }) => (
+  ItemRow: ({ item, fieldDefs = [], onToggleComplete, onOpen }) => (
     <div
       data-testid={`item-row-${item.id}`}
       onClick={() => onOpen && onOpen(item.id)}
@@ -16,6 +17,16 @@ vi.mock('../../items/ItemRow.jsx', () => ({
         onClick={(e) => { e.stopPropagation(); onToggleComplete && onToggleComplete(item) }}
       />
       {item.text}
+      {/* Render a stub field cell for each def that has a value on this item */}
+      {fieldDefs.map((def) => {
+        const val = (item.fields ?? {})[def.key]
+        if (val == null || val === '') return null
+        return (
+          <span key={def.key} data-testid={`item-field-cell-${def.key}`}>
+            {String(val)}
+          </span>
+        )
+      })}
     </div>
   ),
 }))
@@ -309,6 +320,35 @@ describe('ListViewLens', () => {
       fireEvent.change(screen.getByTestId('add-item-input'), { target: { value: '   ' } })
       fireEvent.click(screen.getByTestId('add-item-button'))
       expect(onAddItem).not.toHaveBeenCalled()
+    })
+  })
+
+  // ── fieldDefs threading ───────────────────────────────────────────────────
+  describe('fieldDefs threading', () => {
+    const FIELD_DEFS = [
+      { id: 'n1', key: 'budget', type: 'number', label: 'Budget', config: { unit: '$' }, position: 0 },
+    ]
+    const ITEMS_WITH_FIELDS = [
+      { id: '1', text: 'Alpha', completed: false, status: 'To do', assignee_id: null, tags: [], fields: { budget: 500 } },
+      { id: '2', text: 'Beta',  completed: true,  status: 'Done',  assignee_id: null, tags: [], fields: {} },
+    ]
+
+    it('renders item-field-cell-* in flat (none) mode when fieldDefs are passed', () => {
+      render(<ListViewLens items={ITEMS_WITH_FIELDS} fieldDefs={FIELD_DEFS} />)
+      // Item 1 has budget=500 → should render the cell
+      expect(screen.getByTestId('item-field-cell-budget')).toBeInTheDocument()
+    })
+
+    it('renders item-field-cell-* in grouped mode when fieldDefs are passed', () => {
+      render(<ListViewLens items={ITEMS_WITH_FIELDS} fieldDefs={FIELD_DEFS} groupBy="completion" />)
+      // Item 1 (budget=500) is in Active group — field cell should be present
+      const activeSection = screen.getByTestId('groupsection-active')
+      expect(within(activeSection).getByTestId('item-field-cell-budget')).toBeInTheDocument()
+    })
+
+    it('does not render field cells when fieldDefs is empty (default)', () => {
+      render(<ListViewLens items={ITEMS_WITH_FIELDS} />)
+      expect(screen.queryByTestId('item-field-cell-budget')).toBeNull()
     })
   })
 })

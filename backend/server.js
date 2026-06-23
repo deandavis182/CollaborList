@@ -667,7 +667,11 @@ app.get('/api/lists/:listId/items', authenticateToken, async (req, res) => {
          (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color) ORDER BY t.name)
           FROM item_tags it JOIN tags t ON t.id = it.tag_id WHERE it.item_id = li.id),
          '[]'::json
-       ) AS tags
+       ) AS tags,
+       COALESCE(
+         (SELECT json_object_agg(f.key, f.value) FROM item_fields f WHERE f.item_id = li.id),
+         '{}'::json
+       ) AS fields
        FROM list_items li
        WHERE li.list_id = $1
        ORDER BY li.position, li.created_at`,
@@ -1151,6 +1155,9 @@ app.use('/api/activity', require('./routes/activity')(authenticateToken, sanitiz
 
 // My Tasks route (V2 — assigned items across all accessible lists)
 app.use('/api/me', require('./routes/tasks')(authenticateToken));
+
+// Structured fields routes (V2 — field-defs + per-item values)
+app.use('/api', require('./routes/fields')(authenticateToken, sanitizeInput, { list: emitListUpdate }));
 
 // Security check for production environment
 function checkProductionSecurity() {

@@ -16,9 +16,11 @@ vi.mock('../../../lib/api.js', () => ({
   useTags: vi.fn(),
   useAddItemTag: vi.fn(),
   useRemoveItemTag: vi.fn(),
+  useFieldDefs: vi.fn(),
+  useSetItemField: vi.fn(),
 }))
 
-import { useListItems, useUpdateItem, useWorkspaceMembers, useItemComments, useCreateComment, useDeleteComment, useTags, useAddItemTag, useRemoveItemTag } from '../../../lib/api.js'
+import { useListItems, useUpdateItem, useWorkspaceMembers, useItemComments, useCreateComment, useDeleteComment, useTags, useAddItemTag, useRemoveItemTag, useFieldDefs, useSetItemField } from '../../../lib/api.js'
 import { useStore } from '../../../lib/store.js'
 import { ItemDetailDrawer } from '../ItemDetailDrawer.jsx'
 
@@ -83,6 +85,8 @@ describe('ItemDetailDrawer', () => {
     useTags.mockReturnValue({ data: [], isLoading: false })
     useAddItemTag.mockReturnValue({ mutate: vi.fn(), isPending: false })
     useRemoveItemTag.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useFieldDefs.mockReturnValue({ data: [], isLoading: false })
+    useSetItemField.mockReturnValue({ mutate: vi.fn() })
   })
 
   afterEach(() => {
@@ -320,6 +324,30 @@ describe('ItemDetailDrawer', () => {
     render(<ItemDetailDrawer listId="list-1" workspaceId="ws-1" />, { wrapper: Wrapper })
 
     expect(screen.getByText('Tags')).toBeInTheDocument()
+  })
+
+  // -------------------------------------------------------------------------
+  // 11. Custom fields section renders ItemFieldInputs when an item is open
+  // -------------------------------------------------------------------------
+  it('renders the Custom fields section (data-testid="item-field-inputs") when defs exist', () => {
+    useStore.setState({ detailItemId: 42 })
+    useFieldDefs.mockReturnValue({
+      data: [{ id: 1, key: 'budget', label: 'Budget', type: 'number', config: {} }],
+      isLoading: false,
+    })
+
+    render(<ItemDetailDrawer listId="list-1" workspaceId="ws-1" />, { wrapper: Wrapper })
+
+    expect(screen.getByTestId('item-field-inputs')).toBeInTheDocument()
+  })
+
+  it('does NOT render item-field-inputs when there are no field defs', () => {
+    useStore.setState({ detailItemId: 42 })
+    // useFieldDefs returns [] by default in beforeEach
+
+    render(<ItemDetailDrawer listId="list-1" workspaceId="ws-1" />, { wrapper: Wrapper })
+
+    expect(screen.queryByTestId('item-field-inputs')).not.toBeInTheDocument()
   })
 
   it('TagPicker shows item tags as chips inside the drawer', () => {

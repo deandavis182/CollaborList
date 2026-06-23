@@ -7,8 +7,13 @@ import React from 'react'
 // Mock api — we test wiring, not the real HTTP layer
 // ---------------------------------------------------------------------------
 vi.mock('../../../lib/api.js', () => ({
-  useUpdateAnyItem: vi.fn(),
-  useCreateItem:    vi.fn(),
+  useUpdateAnyItem:    vi.fn(),
+  useCreateItem:       vi.fn(),
+  // Field hooks — needed because ViewContainer now mounts FieldsManager
+  useFieldDefs:        vi.fn(),
+  useCreateFieldDef:   vi.fn(),
+  useDeleteFieldDef:   vi.fn(),
+  useApplyFieldPreset: vi.fn(),
 }))
 
 // ---------------------------------------------------------------------------
@@ -90,7 +95,14 @@ vi.mock('../ListViewLens.jsx', () => ({
   },
 }))
 
-import { useUpdateAnyItem, useCreateItem } from '../../../lib/api.js'
+import {
+  useUpdateAnyItem,
+  useCreateItem,
+  useFieldDefs,
+  useCreateFieldDef,
+  useDeleteFieldDef,
+  useApplyFieldPreset,
+} from '../../../lib/api.js'
 import { useStore } from '../../../lib/store.js'
 import { ViewContainer } from '../ViewContainer.jsx'
 
@@ -137,6 +149,11 @@ const createMutateSpy = vi.fn()
 function setupMocks() {
   useUpdateAnyItem.mockReturnValue({ mutate: updateMutateSpy, isPending: false })
   useCreateItem.mockReturnValue({ mutate: createMutateSpy, isPending: false })
+  // Field hooks — FieldsManager is conditionally mounted by ViewContainer
+  useFieldDefs.mockReturnValue({ data: [], isLoading: false })
+  useCreateFieldDef.mockReturnValue({ mutate: vi.fn(), isPending: false })
+  useDeleteFieldDef.mockReturnValue({ mutate: vi.fn(), isPending: false })
+  useApplyFieldPreset.mockReturnValue({ mutate: vi.fn(), isPending: false })
 }
 
 // Clear localStorage view prefs between tests to ensure clean state
@@ -431,5 +448,57 @@ describe('ViewContainer', () => {
 
     // store.detailItemId must remain null — onOpenItem took over
     expect(useStore.getState().detailItemId).toBeNull()
+  })
+
+  // ── FieldRollups footer (T5) ───────────────────────────────────────────────
+
+  describe('FieldRollups footer wiring', () => {
+    const BUDGET_DEFS = [
+      { id: 'c1', key: 'cost',    type: 'number', label: 'Cost',    config: { unit: '$' }, position: 0 },
+      { id: 'p1', key: 'payment', type: 'status', label: 'Payment', config: { options: ['Unpaid', 'Paid'] }, position: 1 },
+    ]
+
+    const BUDGET_ITEMS = [
+      { id: 1, list_id: 10, text: 'Item A', completed: false, tags: [], fields: { cost: 100, payment: 'Paid'   } },
+      { id: 2, list_id: 10, text: 'Item B', completed: false, tags: [], fields: { cost: 200, payment: 'Unpaid' } },
+    ]
+
+    it('renders field-rollups footer in list view when defs have number fields', () => {
+      useFieldDefs.mockReturnValue({ data: BUDGET_DEFS, isLoading: false })
+      render(
+        <ViewContainer items={BUDGET_ITEMS} listId={10} scopeKey="test-rollups" />,
+        { wrapper: Wrapper }
+      )
+      // Should be in list view by default
+      expect(screen.getByTestId('field-rollups')).toBeInTheDocument()
+    })
+
+    it('calls useFieldDefs with the listId', () => {
+      useFieldDefs.mockReturnValue({ data: BUDGET_DEFS, isLoading: false })
+      render(
+        <ViewContainer items={BUDGET_ITEMS} listId={10} scopeKey="test-rollups-id" />,
+        { wrapper: Wrapper }
+      )
+      expect(useFieldDefs).toHaveBeenCalledWith(10)
+    })
+
+    it('does not render field-rollups when not in list view', () => {
+      useFieldDefs.mockReturnValue({ data: BUDGET_DEFS, isLoading: false })
+      render(
+        <ViewContainer items={BUDGET_ITEMS} listId={10} scopeKey="test-rollups-board" />,
+        { wrapper: Wrapper }
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Board' }))
+      expect(screen.queryByTestId('field-rollups')).toBeNull()
+    })
+
+    it('does not render field-rollups when defs are empty', () => {
+      useFieldDefs.mockReturnValue({ data: [], isLoading: false })
+      render(
+        <ViewContainer items={ITEMS} listId={10} scopeKey="test-rollups-empty" />,
+        { wrapper: Wrapper }
+      )
+      expect(screen.queryByTestId('field-rollups')).toBeNull()
+    })
   })
 })

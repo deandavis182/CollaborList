@@ -12,6 +12,7 @@
 import { Chip } from '../../ui/Chip.jsx'
 import { Avatar } from '../../ui/Avatar.jsx'
 import { formatDay, parseLocalDay } from '../../lib/dates.js'
+import { ItemFieldCells } from '../fields/ItemFieldCells.jsx'
 
 /** Map a tag hex color to a Chip color token. */
 const TAG_COLOR_MAP = {
@@ -30,7 +31,7 @@ const STATUS_COLOR = {
   'Blocked': 'danger',
 }
 
-export function ItemRow({ item, depth = 0, members = [], onToggleComplete, onOpen }) {
+export function ItemRow({ item, depth = 0, members = [], fieldDefs = [], onToggleComplete, onOpen }) {
   const paddingLeft = depth * 24
 
   // Resolve due-date overdue state
@@ -121,6 +122,11 @@ export function ItemRow({ item, depth = 0, members = [], onToggleComplete, onOpe
             {tag.name}
           </Chip>
         ))
+      )}
+
+      {/* Custom field cells — rendered only when fieldDefs are present */}
+      {fieldDefs.length > 0 && (
+        <ItemFieldCells item={item} fieldDefs={fieldDefs} members={members} />
       )}
 
       {/* Assignee avatar */}

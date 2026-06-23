@@ -66,7 +66,8 @@ module.exports = (authenticateToken, sanitize) => {
       const r = await pool.query(
         `SELECT li.*, l.name AS list_name,
            COALESCE((SELECT json_agg(json_build_object('id',t.id,'name',t.name,'color',t.color) ORDER BY t.name)
-                     FROM item_tags it JOIN tags t ON t.id=it.tag_id WHERE it.item_id=li.id), '[]'::json) AS tags
+                     FROM item_tags it JOIN tags t ON t.id=it.tag_id WHERE it.item_id=li.id), '[]'::json) AS tags,
+           COALESCE((SELECT json_object_agg(f.key, f.value) FROM item_fields f WHERE f.item_id=li.id), '{}'::json) AS fields
          FROM list_items li
          JOIN lists l ON l.id = li.list_id
          WHERE l.project_id = $1

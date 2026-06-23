@@ -15,7 +15,7 @@
 
 import { useState } from 'react'
 import { useViewPref } from '../../lib/useViewPref.js'
-import { useUpdateAnyItem, useCreateItem } from '../../lib/api.js'
+import { useUpdateAnyItem, useCreateItem, useFieldDefs } from '../../lib/api.js'
 import { useStore } from '../../lib/store.js'
 import { ViewSwitcher } from './ViewSwitcher.jsx'
 import { ListViewLens } from './ListViewLens.jsx'
@@ -23,6 +23,9 @@ import { BoardView } from './BoardView.jsx'
 import { CalendarView } from './CalendarView.jsx'
 import { TimelineView } from './TimelineView.jsx'
 import { SegmentedControl } from '../../ui/SegmentedControl.jsx'
+import { Button } from '../../ui/Button.jsx'
+import { FieldsManager } from '../fields/FieldsManager.jsx'
+import { FieldRollups } from '../fields/FieldRollups.jsx'
 
 const GROUP_BY_OPTIONS = [
   { value: 'none',       label: 'None' },
@@ -48,6 +51,12 @@ export function ViewContainer({
 
   // ── Board-specific local groupMode ─────────────────────────────────────────
   const [boardMode, setBoardMode] = useState('status')
+
+  // ── Fields manager open state ──────────────────────────────────────────────
+  const [fieldsOpen, setFieldsOpen] = useState(false)
+
+  // ── Field defs — enabled only when listId is present (hook guards internally) ─
+  const { data: fieldDefs = [] } = useFieldDefs(listId)
 
   // ── Mutations — always called unconditionally (React rules) ────────────────
   const updateAny  = useUpdateAnyItem()
@@ -94,7 +103,7 @@ export function ViewContainer({
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div data-testid="view-container" className="flex flex-col gap-3">
-      {/* Header row: ViewSwitcher + optional group-by control */}
+      {/* Header row: ViewSwitcher + optional group-by control + Fields button */}
       <div className="flex items-center gap-4 flex-wrap">
         <ViewSwitcher view={view} onChange={setView} />
 
@@ -106,18 +115,42 @@ export function ViewContainer({
             onChange={setGroupBy}
           />
         )}
+
+        {listId != null && (
+          <Button
+            variant="secondary"
+            size="sm"
+            data-testid="open-fields-btn"
+            onClick={() => setFieldsOpen(true)}
+          >
+            Fields
+          </Button>
+        )}
       </div>
+
+      {/* Fields manager sheet — only rendered when listId is present */}
+      {listId != null && (
+        <FieldsManager
+          listId={listId}
+          open={fieldsOpen}
+          onClose={() => setFieldsOpen(false)}
+        />
+      )}
 
       {/* Active lens */}
       {view === 'list' && (
-        <ListViewLens
-          items={items}
-          members={members}
-          groupBy={groupBy}
-          onToggleComplete={onToggleComplete}
-          onOpen={onOpen}
-          onAddItem={addItemHandler}
-        />
+        <>
+          <ListViewLens
+            items={items}
+            members={members}
+            fieldDefs={fieldDefs}
+            groupBy={groupBy}
+            onToggleComplete={onToggleComplete}
+            onOpen={onOpen}
+            onAddItem={addItemHandler}
+          />
+          <FieldRollups fieldDefs={fieldDefs} items={items} />
+        </>
       )}
 
       {view === 'board' && (

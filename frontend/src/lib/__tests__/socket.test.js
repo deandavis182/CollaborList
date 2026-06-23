@@ -632,3 +632,63 @@ describe('registerSocketHandlers — extended cleanup for collaboration events',
     expect(socket.off).toHaveBeenCalledWith('typing', expect.any(Function))
   })
 })
+
+// ---------------------------------------------------------------------------
+// registerSocketHandlers — field-updated events
+// ---------------------------------------------------------------------------
+
+describe('registerSocketHandlers — field-updated events', () => {
+  let socket, queryClient
+
+  beforeEach(() => {
+    socket = makeFakeSocket()
+    queryClient = makeMockQueryClient()
+    vi.clearAllMocks()
+  })
+
+  it('registers field-updated listener', () => {
+    registerSocketHandlers(socket, queryClient)
+    expect(socket.on).toHaveBeenCalledWith('field-updated', expect.any(Function))
+  })
+
+  it('field-updated invalidates ["items", listId]', () => {
+    registerSocketHandlers(socket, queryClient)
+    socket.emit('field-updated', { listId: 5 })
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['items', 5] })
+  })
+
+  it('field-updated invalidates ["projectItems"]', () => {
+    registerSocketHandlers(socket, queryClient)
+    socket.emit('field-updated', { listId: 5 })
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['projectItems'] })
+  })
+
+  it('field-updated invalidates ["fieldDefs", listId]', () => {
+    registerSocketHandlers(socket, queryClient)
+    socket.emit('field-updated', { listId: 5 })
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['fieldDefs', 5] })
+  })
+
+  it('field-updated does not throw on null payload', () => {
+    registerSocketHandlers(socket, queryClient)
+    expect(() => socket.emit('field-updated', null)).not.toThrow()
+  })
+
+  it('field-updated does not throw on malformed payload (no listId)', () => {
+    registerSocketHandlers(socket, queryClient)
+    expect(() => socket.emit('field-updated', { itemId: 99 })).not.toThrow()
+  })
+
+  it('cleanup removes field-updated listener', () => {
+    const cleanup = registerSocketHandlers(socket, queryClient)
+    cleanup()
+    expect(socket.off).toHaveBeenCalledWith('field-updated', expect.any(Function))
+  })
+
+  it('after cleanup, field-updated no longer triggers cache invalidation', () => {
+    const cleanup = registerSocketHandlers(socket, queryClient)
+    cleanup()
+    socket.emit('field-updated', { listId: 5 })
+    expect(queryClient.invalidateQueries).not.toHaveBeenCalled()
+  })
+})
