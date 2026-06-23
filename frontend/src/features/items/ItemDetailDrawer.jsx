@@ -16,6 +16,7 @@ import { Field } from '../../ui/Field.jsx'
 import { StatusControl } from './StatusControl.jsx'
 import { AssigneePicker } from './AssigneePicker.jsx'
 import { DueDateField } from './DueDateField.jsx'
+import { CommentThread } from '../comments/CommentThread.jsx'
 
 export function ItemDetailDrawer({ listId, workspaceId }) {
   const detailItemId = useStore((s) => s.detailItemId)
@@ -146,7 +147,10 @@ export function ItemDetailDrawer({ listId, workspaceId }) {
           />
         </Field>
 
-        {/* Task 3B.6: CommentThread mounts here */}
+        {/* 6. Comments */}
+        {item && (
+          <CommentThread itemId={item.id} workspaceId={workspaceId} />
+        )}
 
       </div>
     </Sheet>

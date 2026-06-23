@@ -10,9 +10,12 @@ vi.mock('../../../lib/api.js', () => ({
   useListItems: vi.fn(),
   useUpdateItem: vi.fn(),
   useWorkspaceMembers: vi.fn(),
+  useItemComments: vi.fn(),
+  useCreateComment: vi.fn(),
+  useDeleteComment: vi.fn(),
 }))
 
-import { useListItems, useUpdateItem, useWorkspaceMembers } from '../../../lib/api.js'
+import { useListItems, useUpdateItem, useWorkspaceMembers, useItemComments, useCreateComment, useDeleteComment } from '../../../lib/api.js'
 import { useStore } from '../../../lib/store.js'
 import { ItemDetailDrawer } from '../ItemDetailDrawer.jsx'
 
@@ -71,6 +74,9 @@ describe('ItemDetailDrawer', () => {
     useListItems.mockReturnValue({ data: [ITEM], isLoading: false })
     useUpdateItem.mockReturnValue({ mutate: mutateSpy, isPending: false })
     useWorkspaceMembers.mockReturnValue({ data: MEMBERS, isLoading: false })
+    useItemComments.mockReturnValue({ data: [], isLoading: false })
+    useCreateComment.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useDeleteComment.mockReturnValue({ mutate: vi.fn() })
   })
 
   afterEach(() => {
@@ -275,5 +281,16 @@ describe('ItemDetailDrawer', () => {
     render(<ItemDetailDrawer listId="list-1" workspaceId="ws-1" />, { wrapper: Wrapper })
 
     expect(screen.queryByTestId('item-detail-drawer')).not.toBeInTheDocument()
+  })
+
+  // -------------------------------------------------------------------------
+  // 9. CommentThread is rendered inside the open drawer (Task 3B.6)
+  // -------------------------------------------------------------------------
+  it('renders CommentThread (data-testid="comment-thread") inside an open drawer', () => {
+    useStore.setState({ detailItemId: 42 })
+
+    render(<ItemDetailDrawer listId="list-1" workspaceId="ws-1" />, { wrapper: Wrapper })
+
+    expect(screen.getByTestId('comment-thread')).toBeInTheDocument()
   })
 })
