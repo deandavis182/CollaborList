@@ -1171,6 +1171,18 @@ app.delete('/api/items/:id/tags/:tagId', authenticateToken, async (req, res) => 
 app.use('/api/workspaces', require('./routes/workspaces')(authenticateToken, sanitizeInput));
 app.use('/api/projects', require('./routes/projects')(authenticateToken, sanitizeInput));
 
+// Attachments routes (V2 Phase 7A — upload/list/download/delete).
+// MUST be mounted BEFORE the broad '/api' routers below (comments, fields, push):
+// those routers apply `router.use(authenticateToken)` at the top, which rejects any
+// '/api/*' request lacking an Authorization header before it can fall through. The
+// attachment download endpoint authenticates via a `?token=` query param (for <img>/
+// anchor GETs) and has no Authorization header, so it must match here first. The
+// attachments router uses per-route auth (no broad middleware), so non-attachment
+// paths pass straight through to the routers below.
+const { upload: attachmentUpload, ensureUploadDir } = require('./lib/uploads');
+ensureUploadDir();
+app.use('/api', require('./routes/attachments')(authenticateToken, attachmentUpload));
+
 // Comments routes (V2 — items/:id/comments and comments/:id)
 app.use('/api', require('./routes/comments')(authenticateToken, sanitizeInput, { list: emitListUpdate, workspace: emitWorkspaceUpdate }));
 
@@ -1185,11 +1197,6 @@ app.use('/api', require('./routes/fields')(authenticateToken, sanitizeInput, { l
 
 // Push subscription + notification prefs routes (V2 — web push)
 app.use('/api', require('./routes/push')(authenticateToken));
-
-// Attachments routes (V2 Phase 7A — upload/list/download/delete)
-const { upload: attachmentUpload, ensureUploadDir } = require('./lib/uploads');
-ensureUploadDir();
-app.use('/api', require('./routes/attachments')(authenticateToken, attachmentUpload));
 
 // Security check for production environment
 function checkProductionSecurity() {
