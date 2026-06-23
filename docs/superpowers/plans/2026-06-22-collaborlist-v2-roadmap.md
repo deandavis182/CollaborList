@@ -98,10 +98,16 @@ DEFAULT 'To do' + watermark column). New socket events: `comment-created/deleted
 `typing`, `activity-created` (catalogued in new `backend/realtime/events.js` + FE `lib/events.js`).
 Permission: read comments/activity = list view; post/assign/status = list edit; activity = ws member.
 **Notifications in Phase 3 = activity rows + unread dot only; Web Push delivery is Phase 6.**
-- **3A — Collaboration backend** — ⬜ TODO. **Plan:** `2026-06-22-collaborlist-v2-phase3a-collab-backend.md`
-  (10 tasks; migration 013, `itemAccess`/`commentService`/`activityService`/`taskService`,
-  `routes/comments|activity|tasks`, item collab fields + sync, in-memory presence; additive only;
-  `cross-list-move.test.js` must stay green). Branch `v2-phase3-collab-backend`.
+- **3A — Collaboration backend** — ✅ DONE (merged to main 2026-06-22, origin `078420d`). **Plan:** `2026-06-22-collaborlist-v2-phase3a-collab-backend.md`
+  (10 tasks; migration 013 [status DEFAULT 'To do' + `workspace_members.last_seen_activity`], `realtime/events.js`,
+  `itemAccess`/`commentService`/`activityService`[+`itemActivityEvents`]/`taskService`, `routes/comments|activity|tasks`,
+  item collab fields [assignee_id/due_date/status] + write-time status↔completed sync [status wins], `realtime/presence.js`
+  + socket presence/typing. 73 unit + 79 integration ×2; final review ready-to-merge, no Critical/Important).
+  **NEW CARRY-FORWARD:** item endpoints remain inline in `server.js`, so `item-collab.integration.test.js` +
+  `cross-list-move.test.js` use handler REPLICAS (don't exercise real server) and the PUT activity-wiring is only
+  unit-covered via `itemActivityEvents` + boot. Extract `routes/items.js` + `services/itemService.js` in a future task
+  (spec §9) to make them testable against real code. Minor follow-ups: malformed `due_date` → 500 not 400 (add 400 guard
+  in the items extraction); comment sanitize caps 1000 chars/strips quotes (acceptable); self-assign records own activity (cosmetic).
 - **3B — Collaboration frontend** — ⬜ TODO (after 3A merged). **Plan:** `2026-06-22-collaborlist-v2-phase3b-collab-frontend.md`
   (10 tasks; item list + detail drawer, assignee/due/status controls, comments + @mention autocomplete,
   My Tasks landing, activity feed + unread dot, presence/typing; new shell can edit items but does NOT
