@@ -778,6 +778,54 @@ export function useDeleteList(projectId) {
 }
 
 // ---------------------------------------------------------------------------
+// Cross-scope item hooks
+// ---------------------------------------------------------------------------
+
+/**
+ * Update any item regardless of which list it belongs to.
+ * mutationFn receives { id, list_id, ...changes }.
+ * onSettled invalidates:
+ *   - ['items', list_id] when list_id is present
+ *   - ['projectItems'] (broad — all project roll-ups)
+ *   - ['myTasks']
+ */
+export function useUpdateAnyItem() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, list_id: _list_id, ...changes }) => {
+      const { data } = await apiClient.put(`/items/${id}`, changes)
+      return data
+    },
+
+    onSettled: (_data, _err, variables) => {
+      const { list_id } = variables ?? {}
+      if (list_id != null) {
+        queryClient.invalidateQueries({ queryKey: ['items', list_id] })
+      }
+      queryClient.invalidateQueries({ queryKey: ['projectItems'] })
+      queryClient.invalidateQueries({ queryKey: ['myTasks'] })
+    },
+  })
+}
+
+/**
+ * Fetch all items that belong to a project (roll-up across all its lists).
+ * Only enabled when projectId is truthy.
+ * Key: ['projectItems', projectId]
+ */
+export function useProjectItems(projectId) {
+  return useQuery({
+    queryKey: ['projectItems', projectId],
+    queryFn: async () => {
+      const { data } = await apiClient.get(`/projects/${projectId}/items`)
+      return data
+    },
+    enabled: Boolean(projectId),
+  })
+}
+
+// ---------------------------------------------------------------------------
 // Project hooks (continued)
 // ---------------------------------------------------------------------------
 
