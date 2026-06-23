@@ -498,6 +498,123 @@ export function useDeleteItem(listId) {
 }
 
 // ---------------------------------------------------------------------------
+// Comment hooks
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch all comments for an item.
+ * Only enabled when itemId is truthy.
+ */
+export function useItemComments(itemId) {
+  return useQuery({
+    queryKey: ['comments', itemId],
+    queryFn: async () => {
+      const { data } = await apiClient.get(`/items/${itemId}/comments`)
+      return data
+    },
+    enabled: Boolean(itemId),
+  })
+}
+
+/**
+ * Create a comment on an item.
+ * mutationFn receives { body }.
+ * onSettled invalidates ['comments', itemId].
+ */
+export function useCreateComment(itemId) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ body }) => {
+      const { data } = await apiClient.post(`/items/${itemId}/comments`, { body })
+      return data
+    },
+
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['comments', itemId] })
+    },
+  })
+}
+
+/**
+ * Delete a comment by id.
+ * mutationFn receives the commentId.
+ * onSettled invalidates ['comments', itemId].
+ */
+export function useDeleteComment(itemId) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (commentId) => {
+      const { data } = await apiClient.delete(`/comments/${commentId}`)
+      return data
+    },
+
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['comments', itemId] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// My Tasks hooks
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch all items assigned to the current user across all accessible lists.
+ * Always fetches when mounted — no enabled guard.
+ */
+export function useMyTasks() {
+  return useQuery({
+    queryKey: ['myTasks'],
+    queryFn: async () => {
+      const { data } = await apiClient.get('/me/tasks')
+      return data
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Activity hooks
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch workspace activity feed.
+ * Returns { items, unread } shape from the API.
+ * Only enabled when workspaceId is truthy.
+ */
+export function useWorkspaceActivity(workspaceId) {
+  return useQuery({
+    queryKey: ['activity', workspaceId],
+    queryFn: async () => {
+      const { data } = await apiClient.get(`/activity/workspace/${workspaceId}`)
+      return data
+    },
+    enabled: Boolean(workspaceId),
+  })
+}
+
+/**
+ * Mark all activity in a workspace as read.
+ * mutationFn takes no args.
+ * onSuccess invalidates ['activity', workspaceId].
+ */
+export function useMarkActivityRead(workspaceId) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async () => {
+      const { data } = await apiClient.post(`/activity/workspace/${workspaceId}/read`)
+      return data
+    },
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['activity', workspaceId] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
 // Project hooks (continued)
 // ---------------------------------------------------------------------------
 
