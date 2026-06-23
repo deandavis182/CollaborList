@@ -20,6 +20,7 @@ import { MemberManager } from '../features/members/MemberManager.jsx'
 import { MyTasksView } from '../features/tasks/MyTasksView.jsx'
 import { ActivityFeed } from '../features/collab/ActivityFeed.jsx'
 import { ListView } from '../features/items/ListView.jsx'
+import { LoginView } from '../features/auth/LoginView.jsx'
 import { Sheet } from '../ui/Sheet.jsx'
 import { Button } from '../ui/Button.jsx'
 import { useStore } from '../lib/store.js'
@@ -310,6 +311,9 @@ export function ActivityFeedRoute() {
 export function AppRoutes() {
   return (
     <Routes>
+      {/* /login — outside AppLayout (no sidebar/header on the login screen) */}
+      <Route path="login" element={<LoginView />} />
+
       <Route element={<AppLayout />}>
         <Route index element={<MyTasksView />} />
         <Route path="my-tasks" element={<MyTasksView />} />
@@ -339,6 +343,11 @@ export function AppRoutes() {
  */
 export function createAppRouter() {
   return createHashRouter([
+    // /login — outside AppLayout (no sidebar/header on the login screen)
+    {
+      path: '/login',
+      element: <LoginView />,
+    },
     {
       path: '/',
       element: <AppLayout />,

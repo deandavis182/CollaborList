@@ -15,6 +15,7 @@ import React from 'react'
 // Mock api so all hooks don't hit the network
 // ---------------------------------------------------------------------------
 vi.mock('../../lib/api.js', () => ({
+  apiClient: { post: vi.fn() },
   useWorkspaces: vi.fn(() => ({ data: [], isLoading: false })),
   useCreateWorkspace: vi.fn(() => ({ mutate: vi.fn(), isPending: false, isError: false, error: null })),
   useProjects: vi.fn(() => ({ data: [], isLoading: false })),
@@ -44,6 +45,17 @@ vi.mock('../../lib/api.js', () => ({
   useAddItemTag: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useRemoveItemTag: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   useProjectItems: vi.fn(() => ({ data: [], isLoading: false })),
+}))
+
+// ---------------------------------------------------------------------------
+// Mock lib/auth so LoginView doesn't touch localStorage / navigate in tests
+// ---------------------------------------------------------------------------
+vi.mock('../../lib/auth.js', () => ({
+  setAuth: vi.fn(),
+  getToken: vi.fn(() => null),
+  getUser: vi.fn(() => null),
+  logout: vi.fn(),
+  isAuthenticated: vi.fn(() => false),
 }))
 
 import { useWorkspaces, useProjects } from '../../lib/api.js'
@@ -340,5 +352,36 @@ describe('routes — list (/w/:workspaceId/p/:projectId/l/:listId)', () => {
   it('renders the add-item input (ViewContainer is mounted with showAddItem)', () => {
     renderAt('/w/1/p/2/l/3')
     expect(screen.getByTestId('add-item-input')).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Tests — /login route (outside AppLayout)
+// ---------------------------------------------------------------------------
+
+describe('routes — login (/login)', () => {
+  beforeEach(() => {
+    resetStore()
+  })
+
+  it('renders login-view at /login', () => {
+    renderAt('/login')
+    expect(screen.getByTestId('login-view')).toBeInTheDocument()
+  })
+
+  it('does NOT render the AppLayout sidebar at /login', () => {
+    renderAt('/login')
+    expect(screen.queryByTestId('sidebar-container')).not.toBeInTheDocument()
+  })
+
+  it('does NOT render the main-content area at /login', () => {
+    renderAt('/login')
+    expect(screen.queryByTestId('main-content')).not.toBeInTheDocument()
+  })
+
+  it('renders the email and password fields at /login', () => {
+    renderAt('/login')
+    expect(screen.getByTestId('auth-email')).toBeInTheDocument()
+    expect(screen.getByTestId('auth-password')).toBeInTheDocument()
   })
 })
