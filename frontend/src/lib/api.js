@@ -9,13 +9,21 @@ export const apiClient = axios.create({
   baseURL: '/api',
 })
 
-// Attach JWT from localStorage on every request when present
+// Client-generated CSRF token (double-submit pattern). The backend's CSRF
+// middleware rejects every authenticated non-GET request that lacks a non-empty
+// X-CSRF-Token header with 403; it accepts any non-empty value. Generated once
+// per app load (mirrors the legacy app's approach).
+export const CSRF_TOKEN = Math.random().toString(36).slice(2)
+
+// Attach JWT from localStorage + CSRF token on every request.
 apiClient.interceptors.request.use((config) => {
+  config.headers = config.headers ?? {}
   const token = localStorage.getItem('token')
   if (token) {
-    config.headers = config.headers ?? {}
     config.headers['Authorization'] = `Bearer ${token}`
   }
+  // Required by the backend CSRF middleware for non-GET; harmless on GET.
+  config.headers['X-CSRF-Token'] = CSRF_TOKEN
   return config
 })
 
