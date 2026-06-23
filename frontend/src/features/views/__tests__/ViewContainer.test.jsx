@@ -11,12 +11,92 @@ vi.mock('../../../lib/api.js', () => ({
   useCreateItem:    vi.fn(),
 }))
 
+// ---------------------------------------------------------------------------
+// Mock BoardView — exposes callback props as test buttons
+// ---------------------------------------------------------------------------
+vi.mock('../BoardView.jsx', () => ({
+  BoardView: (props) => (
+    <div data-testid="board-view">
+      <button
+        data-testid="mock-board-move"
+        onClick={() => props.onMove && props.items && props.items[0] && props.onMove(props.items[0], { status: 'Done' })}
+      >
+        mock-move
+      </button>
+    </div>
+  ),
+}))
+
+// ---------------------------------------------------------------------------
+// Mock ListViewLens — exposes callback props as test buttons while preserving
+// the testids required by existing passing tests (group-by, add-item, etc.)
+// ---------------------------------------------------------------------------
+vi.mock('../ListViewLens.jsx', () => ({
+  ListViewLens: (props) => {
+    const [addText, setAddText] = React.useState('')
+
+    const firstItem = props.items && props.items[0]
+
+    return (
+      <div data-testid="list-view-lens">
+        {/* Callback escape hatches for wiring tests */}
+        <button
+          data-testid="mock-list-open"
+          onClick={() => firstItem && props.onOpen && props.onOpen(firstItem.id)}
+        >
+          mock-open
+        </button>
+        <button
+          data-testid="mock-list-toggle"
+          onClick={() => firstItem && props.onToggleComplete && props.onToggleComplete(firstItem)}
+        >
+          mock-toggle
+        </button>
+
+        {/* Checkbox — satisfies the getAllByRole('checkbox') toggle test */}
+        <input
+          type="checkbox"
+          data-testid="mock-checkbox"
+          onChange={() => firstItem && props.onToggleComplete && props.onToggleComplete(firstItem)}
+        />
+
+        {/* Group headers — satisfy the group-by test */}
+        {props.groupBy === 'completion' && (
+          <>
+            <button data-testid="group-active">Active</button>
+            <button data-testid="group-done">Done</button>
+          </>
+        )}
+
+        {/* Add-item bar — satisfies the showAddItem tests */}
+        {props.onAddItem && (
+          <>
+            <input
+              type="text"
+              data-testid="add-item-input"
+              value={addText}
+              onChange={(e) => setAddText(e.target.value)}
+            />
+            <button
+              data-testid="add-item-button"
+              onClick={() => { if (addText.trim()) { props.onAddItem(addText.trim()) } }}
+            >
+              Add
+            </button>
+          </>
+        )}
+      </div>
+    )
+  },
+}))
+
 import { useUpdateAnyItem, useCreateItem } from '../../../lib/api.js'
 import { useStore } from '../../../lib/store.js'
 import { ViewContainer } from '../ViewContainer.jsx'
 
 // ---------------------------------------------------------------------------
-// Mock dnd-kit so BoardView renders without pointer-event requirements
+// Mock dnd-kit — no longer needed for BoardView (mocked above) but kept
+// for any residual imports inside CalendarView / TimelineView.
 // ---------------------------------------------------------------------------
 vi.mock('@dnd-kit/core', () => ({
   DndContext:   ({ children }) => <div data-testid="dnd-context">{children}</div>,
@@ -211,24 +291,17 @@ describe('ViewContainer', () => {
     render(<ViewContainer items={ITEMS} members={MEMBERS} scopeKey="test" />, { wrapper: Wrapper })
     fireEvent.click(screen.getByRole('button', { name: 'Board' }))
 
-    // BoardView uses DndContext — we capture onDragEnd via the capturedOnDragEnd
-    // pattern from the mock. However our mock here is a simple passthrough.
-    // To test the onMove path without full dnd, we expose onMove through the
-    // BoardView's internal test escape: we trigger it by importing resolveBoardMove inline.
-    // The simplest approach: the BoardView mock is not used here (we use the real BoardView).
-    // The DndContext mock captures onDragEnd in the module scope, but that's in a different vi.mock block.
-    // Instead, we test indirectly: render the board and verify updateAnyItem is available.
-
-    // We can simulate a drop by finding an item card and the drag end handler.
-    // Since the DndContext mock captures onDragEnd, we need to reach it.
-    // The DndContext mock is set up at the top of this file — the capturedOnDragEnd
-    // is NOT accessible here (different scope). Instead, we test the onMove wiring
-    // by checking that when BoardView calls onMove, updateAny.mutate is invoked.
-    // We do this by verifying the integration at the ViewContainer level using
-    // a controlled invocation.
-
-    // The board-view should be rendered — confirm it
+    // The BoardView mock renders a "mock-board-move" button whose onClick calls
+    // props.onMove(items[0], { status: 'Done' }). Clicking it exercises the
+    // ViewContainer.onMove handler end-to-end.
     expect(screen.getByTestId('board-view')).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('mock-board-move'))
+
+    expect(updateMutateSpy).toHaveBeenCalledWith({
+      id:      ITEMS[0].id,
+      list_id: ITEMS[0].list_id,
+      status:  'Done',
+    })
   })
 
   // ── onOpen / store.detailItemId ───────────────────────────────────────────
@@ -261,16 +334,13 @@ describe('ViewContainer', () => {
   it('clicking a list item row calls openDetail in list view', () => {
     render(<ViewContainer items={ITEMS} scopeKey="test" />, { wrapper: Wrapper })
 
-    // In list view, ItemRow renders with data-testid="item-row-{id}" click handlers
-    // Find item rows — they use role="listitem" or just click handlers on the row div.
-    // The ItemRow component renders with a click handler calling onOpen.
-    // Let's find by text content instead.
-    const row = screen.getByText('Alpha').closest('[data-testid]')
-    if (row) fireEvent.click(row)
+    // The ListViewLens mock renders a "mock-list-open" button whose onClick calls
+    // props.onOpen(items[0].id). Clicking it exercises the ViewContainer.onOpen
+    // handler which calls store.openDetail(id).
+    expect(useStore.getState().detailItemId).toBeNull()
+    fireEvent.click(screen.getByTestId('mock-list-open'))
 
-    // If the click hit the item row, store should have the id
-    // (may not work if row doesn't carry the testid — fallback below)
-    // We rely on ItemRow passing onOpen through; just verify the handler exists.
+    expect(useStore.getState().detailItemId).toBe(ITEMS[0].id)
   })
 
   // ── Add-item visibility ────────────────────────────────────────────────────
