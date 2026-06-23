@@ -834,6 +834,134 @@ export function useProjectItems(projectId) {
 }
 
 // ---------------------------------------------------------------------------
+// Field definition hooks
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch all field definitions for a list.
+ * Only enabled when listId is truthy.
+ * Key: ['fieldDefs', listId]
+ */
+export function useFieldDefs(listId) {
+  return useQuery({
+    queryKey: ['fieldDefs', listId],
+    queryFn: async () => {
+      const { data } = await apiClient.get(`/lists/${String(listId)}/field-defs`)
+      return data
+    },
+    enabled: Boolean(listId),
+  })
+}
+
+/**
+ * Create a new field definition in a list.
+ * mutationFn receives { key, type, label, config, position }.
+ * onSettled invalidates ['fieldDefs', listId].
+ */
+export function useCreateFieldDef(listId) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ key, type, label, config, position }) => {
+      const { data } = await apiClient.post(`/lists/${String(listId)}/field-defs`, {
+        key,
+        type,
+        label,
+        config,
+        position,
+      })
+      return data
+    },
+
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['fieldDefs', listId] })
+    },
+  })
+}
+
+/**
+ * Update an existing field definition.
+ * mutationFn receives { id, ...fields }.
+ * onSettled invalidates ['fieldDefs', listId].
+ */
+export function useUpdateFieldDef(listId) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, ...fields }) => {
+      const { data } = await apiClient.put(`/field-defs/${String(id)}`, fields)
+      return data
+    },
+
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['fieldDefs', listId] })
+    },
+  })
+}
+
+/**
+ * Delete a field definition by id.
+ * mutationFn receives the field def id.
+ * onSettled invalidates ['fieldDefs', listId].
+ */
+export function useDeleteFieldDef(listId) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id) => {
+      const { data } = await apiClient.delete(`/field-defs/${String(id)}`)
+      return data
+    },
+
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['fieldDefs', listId] })
+    },
+  })
+}
+
+/**
+ * Apply a field preset to a list.
+ * mutationFn receives the preset name string.
+ * onSettled invalidates ['fieldDefs', listId].
+ */
+export function useApplyFieldPreset(listId) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (preset) => {
+      const { data } = await apiClient.post(`/lists/${String(listId)}/field-presets`, { preset })
+      return data
+    },
+
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['fieldDefs', listId] })
+    },
+  })
+}
+
+/**
+ * Set a field value on an item.
+ * mutationFn receives { itemId, key, type, value }.
+ * onSettled invalidates ['items', listId] AND ['projectItems'] since field
+ * values live on the item payload.
+ */
+export function useSetItemField(listId) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ itemId, key, type, value }) => {
+      const { data } = await apiClient.put(`/items/${String(itemId)}/fields`, { key, type, value })
+      return data
+    },
+
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['items', listId] })
+      queryClient.invalidateQueries({ queryKey: ['projectItems'] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
 // Project hooks (continued)
 // ---------------------------------------------------------------------------
 

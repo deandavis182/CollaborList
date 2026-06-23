@@ -201,6 +201,20 @@ export function registerSocketHandlers(socket, queryClient) {
   }
 
   // ------------------------------------------------------------------
+  // Field events — invalidate field defs and item payloads (which carry
+  // field values) for the affected list.
+  // ------------------------------------------------------------------
+
+  const onFieldUpdated = (payload) => {
+    if (payload == null) return
+    if (payload.listId != null) {
+      queryClient.invalidateQueries({ queryKey: ['items', payload.listId] })
+      queryClient.invalidateQueries({ queryKey: ['fieldDefs', payload.listId] })
+    }
+    queryClient.invalidateQueries({ queryKey: ['projectItems'] })
+  }
+
+  // ------------------------------------------------------------------
   // Register listeners
   // ------------------------------------------------------------------
   socket.on('workspace-updated', onWorkspaceUpdated)
@@ -217,6 +231,7 @@ export function registerSocketHandlers(socket, queryClient) {
   socket.on(EVENTS.ACTIVITY_CREATED, onActivityCreated)
   socket.on(EVENTS.PRESENCE_UPDATE, onPresenceUpdate)
   socket.on(EVENTS.TYPING, onTyping)
+  socket.on(EVENTS.FIELD_UPDATED, onFieldUpdated)
 
   // ------------------------------------------------------------------
   // Return cleanup — removes only the handlers this function added
@@ -236,5 +251,6 @@ export function registerSocketHandlers(socket, queryClient) {
     socket.off(EVENTS.ACTIVITY_CREATED, onActivityCreated)
     socket.off(EVENTS.PRESENCE_UPDATE, onPresenceUpdate)
     socket.off(EVENTS.TYPING, onTyping)
+    socket.off(EVENTS.FIELD_UPDATED, onFieldUpdated)
   }
 }

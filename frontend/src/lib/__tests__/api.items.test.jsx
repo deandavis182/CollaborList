@@ -58,8 +58,8 @@ function wrapper(queryClient) {
 // ---------------------------------------------------------------------------
 
 describe('EVENTS catalog', () => {
-  it('exports exactly 8 event names', () => {
-    expect(Object.keys(EVENTS)).toHaveLength(8)
+  it('exports exactly 9 event names', () => {
+    expect(Object.keys(EVENTS)).toHaveLength(9)
   })
 
   it('matches backend string values exactly', () => {
