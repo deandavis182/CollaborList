@@ -22,11 +22,13 @@ import { ActivityFeed } from '../features/collab/ActivityFeed.jsx'
 import { ListView } from '../features/items/ListView.jsx'
 import { LoginView } from '../features/auth/LoginView.jsx'
 import { MeScreen } from '../features/mobile/MeScreen.jsx'
+import { ListsScreen } from '../features/mobile/ListsScreen.jsx'
 import { RequireAuth } from '../features/auth/RequireAuth.jsx'
 import { Sheet } from '../ui/Sheet.jsx'
 import { Button } from '../ui/Button.jsx'
 import { useStore } from '../lib/store.js'
 import { useWorkspaces, useProjects } from '../lib/api.js'
+import { useIsMobile } from '../lib/useMediaQuery.js'
 
 // ---------------------------------------------------------------------------
 // HomeView — shown at "/"
@@ -303,6 +305,19 @@ export function ActivityFeedRoute() {
 }
 
 // ---------------------------------------------------------------------------
+// RootRoute — branches between ListsScreen (mobile) and MyTasksView (desktop)
+// ---------------------------------------------------------------------------
+
+/**
+ * RootRoute uses the wrapper pattern (no conditional hook call at top level)
+ * to avoid conditional-hooks violations. On mobile the index "/" renders
+ * ListsScreen; on desktop it renders MyTasksView.
+ */
+function RootRoute() {
+  return useIsMobile() ? <ListsScreen /> : <MyTasksView />
+}
+
+// ---------------------------------------------------------------------------
 // Plain <Routes> tree — used in tests with <MemoryRouter>
 // ---------------------------------------------------------------------------
 
@@ -317,7 +332,7 @@ export function AppRoutes() {
       <Route path="login" element={<LoginView />} />
 
       <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
-        <Route index element={<MyTasksView />} />
+        <Route index element={<RootRoute />} />
         <Route path="my-tasks" element={<MyTasksView />} />
         <Route path="me" element={<MeScreen />} />
         <Route path="w/:workspaceId" element={<WorkspaceView />} />
@@ -351,7 +366,7 @@ export function createAppRouter() {
       path: '/',
       element: <RequireAuth><AppLayout /></RequireAuth>,
       children: [
-        { index: true, element: <MyTasksView /> },
+        { index: true, element: <RootRoute /> },
         { path: 'my-tasks', element: <MyTasksView /> },
         { path: 'me', element: <MeScreen /> },
         { path: 'w/:workspaceId', element: <WorkspaceView /> },
