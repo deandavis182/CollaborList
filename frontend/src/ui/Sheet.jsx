@@ -117,7 +117,7 @@ export function Sheet({
         )}
 
         {/* Body */}
-        <div className="flex-1 px-6 py-4">{children}</div>
+        <div className={variant === 'bottom' ? 'flex-1' : 'flex-1 px-6 py-4'}>{children}</div>
       </div>
     </>
   )

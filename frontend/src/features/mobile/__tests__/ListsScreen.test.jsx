@@ -9,7 +9,7 @@ import { ListsScreen } from '../ListsScreen.jsx'
 
 describe('ListsScreen', () => {
   beforeEach(() => {
-    useStore.setState({ searchQuery: '', detailItemId: null, detailContext: null })
+    useStore.setState({ searchQuery: '', detailItemId: null, detailContext: null, toast: null, currentWorkspaceId: null })
     useMyTasks.mockReturnValue({ data: [
       { id: 1, text: 'A', list_id: 2, list_name: 'Venue', project_name: 'Wedding', workspace_id: 9, project_id: 4, completed: false, status: 'To do', due_date: null },
       { id: 2, text: 'B', list_id: 2, list_name: 'Venue', project_name: 'Wedding', workspace_id: 9, project_id: 4, completed: true, status: 'Done', due_date: null },

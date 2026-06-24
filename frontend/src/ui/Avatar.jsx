@@ -6,7 +6,7 @@
  *
  * Props:
  *   name  : string  — used to derive initials and background tint
- *   size  : 'xs' | 'sm' | 'md' | 'lg'  (default: 'md')
+ *   size  : 'xs' | 'sm' | 'md' | 'lg' | 'xl'  (default: 'md')
  *   src   : string | undefined  — image URL (falls back to initials)
  *   className : string
  */
@@ -39,6 +39,7 @@ const sizeClasses = {
   sm: 'w-8 h-8 text-sm',
   md: 'w-10 h-10 text-base',
   lg: 'w-14 h-14 text-xl',
+  xl: 'w-[78px] h-[78px] text-2xl',
 }
 
 export function Avatar({ name = '', size = 'md', src, className = '', ...rest }) {

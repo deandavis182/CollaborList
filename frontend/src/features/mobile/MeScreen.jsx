@@ -26,7 +26,7 @@ export function MeScreen() {
   return (
     <div data-testid="me-screen" className="px-[18px] pt-[62px] pb-[116px] space-y-5 min-h-full bg-bg">
       <div className="flex flex-col items-center gap-2">
-        <span className="w-[78px] h-[78px]"><Avatar name={name} size="lg" /></span>
+        <Avatar name={name} size="xl" />
         <h1 className="text-[21px] font-bold font-display text-text">{name}</h1>
         <p className="text-[13px] text-text-muted">{user?.email}</p>
       </div>

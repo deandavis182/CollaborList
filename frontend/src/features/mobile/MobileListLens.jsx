@@ -18,7 +18,7 @@ function positionForIndex(order, targetIndex, movingId) {
   return mid === prev.position ? prev.position + 1 : mid
 }
 
-export function MobileListLens({ listId, items, members = [], onOpen }) {
+export function MobileListLens({ listId, items = [], members = [], onOpen }) {
   const { mutate } = useUpdateItem(listId)
   const [order, setOrder] = useState(items)
   useEffect(() => { setOrder(items) }, [items])

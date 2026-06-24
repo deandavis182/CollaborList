@@ -9,7 +9,7 @@ import { MobileListLens } from './MobileListLens.jsx'
 const LENS = [{ value: 'list', label: 'List' }, { value: 'board', label: 'Board' }]
 
 export function MobileListDetail() {
-  const { workspaceId, projectId, listId } = useParams()
+  const { workspaceId, listId } = useParams()
   const navigate = useNavigate()
   const [lens, setLens] = useState('list')
   const { data: items = [] } = useListItems(listId)

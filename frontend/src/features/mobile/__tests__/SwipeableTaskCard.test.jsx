@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 const mutate = vi.fn()
 vi.mock('../../../lib/api.js', () => ({ useUpdateItem: () => ({ mutate }) }))
@@ -8,6 +8,7 @@ const task = { id: 5, text: 'Call florist', list_id: 2, list_name: 'Venue', work
 
 describe('SwipeableTaskCard', () => {
   beforeEach(() => mutate.mockClear())
+  afterEach(() => { vi.useRealTimers() })
   it('renders the title and a list chip', () => {
     render(<TaskCard task={task} onOpen={() => {}} />)
     expect(screen.getByText('Call florist')).toBeInTheDocument()
@@ -31,5 +32,15 @@ describe('SwipeableTaskCard', () => {
     vi.advanceTimersByTime(260)
     expect(mutate).toHaveBeenCalledWith(expect.objectContaining({ id: 5, completed: true }))
     vi.useRealTimers()
+  })
+  it('a left swipe past threshold snoozes to tomorrow', () => {
+    vi.useFakeTimers()
+    render(<TaskCard task={task} onOpen={() => {}} />)
+    const fg = screen.getByTestId('swipe-fg-5')
+    fireEvent.pointerDown(fg, { clientX: 120, clientY: 10, pointerId: 1 })
+    fireEvent.pointerMove(fg, { clientX: 0, clientY: 12, pointerId: 1 })
+    fireEvent.pointerUp(fg, { clientX: 0, clientY: 12, pointerId: 1 })
+    vi.advanceTimersByTime(260)
+    expect(mutate).toHaveBeenCalledWith(expect.objectContaining({ id: 5, due_date: '2026-06-25' }))
   })
 })

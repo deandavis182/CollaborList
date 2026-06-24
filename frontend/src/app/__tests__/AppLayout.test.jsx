@@ -78,8 +78,11 @@ function resetStore() {
     currentWorkspaceId: null,
     currentProjectId: null,
     detailItemId: null,
+    detailContext: null,
     presence: {},
     theme: 'light',
+    toast: null,
+    quickAddOpen: false,
   })
 }
 

@@ -79,6 +79,11 @@ describe('Avatar', () => {
     expect(container.firstChild.className).toContain('w-14')
   })
 
+  test('applies xl size class', () => {
+    const { container } = render(<Avatar name="Test" size="xl" />)
+    expect(container.firstChild.className).toContain('w-[78px]')
+  })
+
   test('applies rounded-full class', () => {
     const { container } = render(<Avatar name="Test" />)
     expect(container.firstChild.className).toContain('rounded-full')
