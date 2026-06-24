@@ -21,6 +21,14 @@ vi.mock('../../lib/api.js', () => ({
   useVapidKey: vi.fn(() => ({ data: null })),
   useNotificationPrefs: vi.fn(() => ({ data: null })),
   useUpdateNotificationPrefs: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  // Mobile children (MobileItemSheet + QuickAddSheet) are mounted in the mobile
+  // branch and call these hooks unconditionally — provide inert defaults so they
+  // can mount without network access.
+  useListItems: vi.fn(() => ({ data: [] })),
+  useUpdateItem: vi.fn(() => ({ mutate: vi.fn() })),
+  useWorkspaceMembers: vi.fn(() => ({ data: [] })),
+  useMyTasks: vi.fn(() => ({ data: [] })),
+  useCreateItem: vi.fn(() => ({ mutate: vi.fn() })),
 }))
 
 // ---------------------------------------------------------------------------

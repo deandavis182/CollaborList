@@ -46,6 +46,14 @@ export const useStore = create((set) => ({
   setQuickAddOpen: (open) => set({ quickAddOpen: open }),
 
   // ---------------------------------------------------------------------------
+  // Global toast — store-backed so a mounted host (AppLayout mobile branch)
+  // can render it even after the originating component unmounts.
+  // ---------------------------------------------------------------------------
+  toast: null,
+  showToast: (message, variant = 'success') => set({ toast: { message, variant } }),
+  dismissToast: () => set({ toast: null }),
+
+  // ---------------------------------------------------------------------------
   // Presence — populated by Phase 3 socket handlers
   // { [userId]: { name, color, cursor, ... } }
   // ---------------------------------------------------------------------------

@@ -13,6 +13,7 @@ function resetStore() {
     theme: 'light',
     searchQuery: '',
     quickAddOpen: false,
+    toast: null,
   })
 }
 
@@ -201,5 +202,29 @@ describe('useStore — mobile extensions', () => {
     useStore.getState().setTheme('dark')
     expect(localStorage.getItem('theme')).toBe('dark')
     expect(useStore.getState().theme).toBe('dark')
+  })
+})
+
+describe('useStore — global toast', () => {
+  beforeEach(resetStore)
+
+  it('starts with no toast', () => {
+    expect(useStore.getState().toast).toBeNull()
+  })
+
+  it('showToast sets the message with default success variant', () => {
+    useStore.getState().showToast('Task added')
+    expect(useStore.getState().toast).toEqual({ message: 'Task added', variant: 'success' })
+  })
+
+  it('showToast accepts an explicit variant', () => {
+    useStore.getState().showToast('Something broke', 'error')
+    expect(useStore.getState().toast).toEqual({ message: 'Something broke', variant: 'error' })
+  })
+
+  it('dismissToast clears the toast', () => {
+    useStore.getState().showToast('Task added')
+    useStore.getState().dismissToast()
+    expect(useStore.getState().toast).toBeNull()
   })
 })

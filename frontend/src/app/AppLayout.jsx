@@ -14,7 +14,7 @@
  *   - Detail surface handled by ItemDetailDrawer inside ListView
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useStore } from '../lib/store.js'
 import { Sidebar } from './Sidebar.jsx'
@@ -23,6 +23,7 @@ import { NotificationPrefs } from '../features/notifications/NotificationPrefs.j
 import { useWorkspaceActivity } from '../lib/api.js'
 import { getUser, logout } from '../lib/auth.js'
 import { Button } from '../ui/Button.jsx'
+import { Toast } from '../ui/Toast.jsx'
 import { useIsMobile } from '../lib/useMediaQuery.js'
 import { MobileTabBar } from '../features/mobile/MobileTabBar.jsx'
 import { MobileItemSheet } from '../features/mobile/MobileItemSheet.jsx'
@@ -31,11 +32,20 @@ import { QuickAddSheet } from '../features/mobile/QuickAddSheet.jsx'
 export function AppLayout({ children }) {
   const currentWorkspaceId = useStore((s) => s.currentWorkspaceId)
   const setQuickAddOpen = useStore((s) => s.setQuickAddOpen)
+  const toast = useStore((s) => s.toast)
+  const dismissToast = useStore((s) => s.dismissToast)
   const navigate = useNavigate()
   const location = useLocation()
   const currentUser = getUser()
   const [notifOpen, setNotifOpen] = useState(false)
   const isMobile = useIsMobile()
+
+  // Auto-dismiss the global toast after a short delay
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => dismissToast(), 2500)
+    return () => clearTimeout(t)
+  }, [toast, dismissToast])
 
   // Derive mobile tab from the current path
   const path = location.pathname
@@ -146,6 +156,11 @@ export function AppLayout({ children }) {
           />
           <MobileItemSheet />
           <QuickAddSheet />
+          {toast && (
+            <div className="fixed inset-x-4 bottom-24 z-40 flex justify-center">
+              <Toast message={toast.message} variant={toast.variant} onDismiss={dismissToast} />
+            </div>
+          )}
         </>
       )}
     </div>
