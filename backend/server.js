@@ -350,12 +350,17 @@ app.get('/api/lists', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT l.*,
+              p.name AS project_name,
+              p.workspace_id AS workspace_id,
+              (SELECT COUNT(*)::int FROM list_items li WHERE li.list_id = l.id) AS total_items,
+              (SELECT COUNT(*)::int FROM list_items li WHERE li.list_id = l.id AND li.completed = true) AS completed_items,
               CASE WHEN l.user_id = $1 THEN true ELSE false END AS is_owner,
               CASE
                 WHEN l.user_id = $1 THEN 'owner'
                 ELSE COALESCE(ls.permission, 'view')
               END AS user_permission
        FROM lists l
+       LEFT JOIN projects p ON l.project_id = p.id
        LEFT JOIN list_shares ls ON l.id = ls.list_id AND ls.user_id = $1
        WHERE l.user_id = $1 OR ls.user_id = $1
        ORDER BY l.created_at DESC`,

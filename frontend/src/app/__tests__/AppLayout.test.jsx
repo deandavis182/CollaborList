@@ -29,6 +29,7 @@ vi.mock('../../lib/api.js', () => ({
   useWorkspaceMembers: vi.fn(() => ({ data: [] })),
   useMyTasks: vi.fn(() => ({ data: [] })),
   useCreateItem: vi.fn(() => ({ mutate: vi.fn() })),
+  useLists: vi.fn(() => ({ data: [] })),
 }))
 
 // ---------------------------------------------------------------------------

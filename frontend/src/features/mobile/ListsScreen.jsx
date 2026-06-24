@@ -1,20 +1,9 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useMyTasks, useWorkspaceMembers } from '../../lib/api.js'
+import { useMyTasks, useWorkspaceMembers, useLists } from '../../lib/api.js'
 import { useStore } from '../../lib/store.js'
 import { listColor, listTint } from '../../lib/listColor.js'
 import { TaskResultRow } from './TaskResultRow.jsx'
-
-function deriveLists(tasks) {
-  const map = new Map()
-  for (const t of tasks) {
-    const cur = map.get(t.list_id) || { id: t.list_id, name: t.list_name, project: t.project_name, projectId: t.project_id, workspaceId: t.workspace_id, total: 0, done: 0 }
-    cur.total += 1
-    if (t.completed) cur.done += 1
-    map.set(t.list_id, cur)
-  }
-  return [...map.values()]
-}
 
 export function filterTasks(tasks, q) {
   const s = q.trim().toLowerCase()
@@ -29,6 +18,7 @@ export function filterTasks(tasks, q) {
 
 export function ListsScreen() {
   const { data: tasks = [] } = useMyTasks()
+  const { data: lists = [] } = useLists()
   const navigate = useNavigate()
   const searchQuery = useStore((s) => s.searchQuery)
   const setSearchQuery = useStore((s) => s.setSearchQuery)
@@ -38,7 +28,6 @@ export function ListsScreen() {
   const emailById = useMemo(() => Object.fromEntries(members.map((m) => [m.user_id, m.email])), [members])
   const enriched = useMemo(() => tasks.map((t) => ({ ...t, assignee_email: emailById[t.assignee_id] })), [tasks, emailById])
 
-  const lists = useMemo(() => deriveLists(enriched), [enriched])
   const results = useMemo(() => filterTasks(enriched, searchQuery), [enriched, searchQuery])
   const searching = searchQuery.trim().length > 0
 
@@ -73,36 +62,44 @@ export function ListsScreen() {
         </div>
       ) : (
         <div className="space-y-3">
-          {lists.map((l) => {
-            const open = l.total - l.done
-            const pct = l.total ? Math.round((l.done / l.total) * 100) : 0
-            return (
-              <button
-                key={l.id}
-                type="button"
-                data-testid={`list-card-${l.id}`}
-                onClick={() => navigate(`/w/${l.workspaceId}/p/${l.projectId}/l/${l.id}`)}
-                className="w-full text-left rounded-2xl p-4 border border-border bg-surface shadow-card flex flex-col gap-[13px]"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="w-[38px] h-[38px] rounded-[11px] grid place-items-center shrink-0" style={{ background: listTint(l.id) }}>
-                    <span className="w-[14px] h-[14px] rounded-md" style={{ background: listColor(l.id) }} />
+          {lists.length === 0 ? (
+            <p data-testid="lists-empty" className="text-center text-text-muted py-10">No lists yet. Create one from a project.</p>
+          ) : (
+            lists.map((l) => {
+              const open = l.total_items - l.completed_items
+              const pct = l.total_items ? Math.round((l.completed_items / l.total_items) * 100) : 0
+              return (
+                <button
+                  key={l.id}
+                  type="button"
+                  data-testid={`list-card-${l.id}`}
+                  onClick={() => {
+                    if (l.workspace_id && l.project_id) {
+                      navigate(`/w/${l.workspace_id}/p/${l.project_id}/l/${l.id}`)
+                    }
+                  }}
+                  className="w-full text-left rounded-2xl p-4 border border-border bg-surface shadow-card flex flex-col gap-[13px]"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="w-[38px] h-[38px] rounded-[11px] grid place-items-center shrink-0" style={{ background: listTint(l.id) }}>
+                      <span className="w-[14px] h-[14px] rounded-md" style={{ background: listColor(l.id) }} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[16px] font-bold text-text truncate">{l.name}</span>
+                      <span className="block text-[12.5px] text-text-muted truncate">{l.project_name}</span>
+                    </span>
+                    <span className="text-right shrink-0">
+                      <span className="block text-[18px] font-bold font-display text-text leading-none">{open}</span>
+                      <span className="block text-[11px] text-text-muted">open</span>
+                    </span>
+                  </div>
+                  <span className="block h-1.5 rounded-full bg-surface-2 overflow-hidden">
+                    <span className="block h-full rounded-full" style={{ width: `${pct}%`, background: listColor(l.id) }} />
                   </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[16px] font-bold text-text truncate">{l.name}</span>
-                    <span className="block text-[12.5px] text-text-muted truncate">{l.project}</span>
-                  </span>
-                  <span className="text-right shrink-0">
-                    <span className="block text-[18px] font-bold font-display text-text leading-none">{open}</span>
-                    <span className="block text-[11px] text-text-muted">open</span>
-                  </span>
-                </div>
-                <span className="block h-1.5 rounded-full bg-surface-2 overflow-hidden">
-                  <span className="block h-full rounded-full" style={{ width: `${pct}%`, background: listColor(l.id) }} />
-                </span>
-              </button>
-            )
-          })}
+                </button>
+              )
+            })
+          )}
         </div>
       )}
     </div>

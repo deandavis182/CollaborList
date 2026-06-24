@@ -609,6 +609,25 @@ export function useRemoveItemTag(listId) {
 }
 
 // ---------------------------------------------------------------------------
+// Lists hooks
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch all lists accessible to the current user (owned + shared).
+ * Each list includes project_name, workspace_id, total_items, completed_items,
+ * is_owner, and user_permission — enriched by the GET /api/lists endpoint.
+ */
+export function useLists() {
+  return useQuery({
+    queryKey: ['lists'],
+    queryFn: async () => {
+      const { data } = await apiClient.get('/lists')
+      return data
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
 // My Tasks hooks
 // ---------------------------------------------------------------------------
 

@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useStore } from '../../lib/store.js'
-import { useMyTasks, useCreateItem } from '../../lib/api.js'
+import { useLists, useCreateItem } from '../../lib/api.js'
 import { getUser } from '../../lib/auth.js'
 import { Sheet } from '../../ui/Sheet.jsx'
 import { listColor } from '../../lib/listColor.js'
@@ -18,18 +18,11 @@ function dueFromOffset(offset) {
   return d.toISOString().slice(0, 10)
 }
 
-function distinctLists(tasks) {
-  const map = new Map()
-  for (const t of tasks) if (!map.has(t.list_id)) map.set(t.list_id, { id: t.list_id, name: t.list_name })
-  return [...map.values()]
-}
-
 export function QuickAddSheet() {
   const open = useStore((s) => s.quickAddOpen)
   const setOpen = useStore((s) => s.setQuickAddOpen)
   const showToast = useStore((s) => s.showToast)
-  const { data: tasks = [] } = useMyTasks()
-  const lists = useMemo(() => distinctLists(tasks), [tasks])
+  const { data: lists = [] } = useLists()
   const [text, setText] = useState('')
   const [when, setWhen] = useState('today')
   const [listId, setListId] = useState(null)
@@ -50,28 +43,34 @@ export function QuickAddSheet() {
   return (
     <Sheet variant="bottom" open onClose={() => setOpen(false)} title="New task">
       <div className="px-5 pb-8 space-y-5">
-        <input
-          data-testid="quickadd-input"
-          autoFocus
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') submit() }}
-          placeholder="What needs doing?"
-          className="w-full bg-transparent outline-none text-[17px] font-semibold text-text placeholder:text-text-muted"
-        />
-        <ChipRow label="When">
-          {WHEN.map((w) => (
-            <ChipToggle key={w.key} active={when === w.key} onClick={() => setWhen(w.key)}>{w.label}</ChipToggle>
-          ))}
-        </ChipRow>
-        <ChipRow label="List">
-          {lists.map((l) => (
-            <ChipToggle key={l.id} active={effectiveListId === l.id} onClick={() => setListId(l.id)}>
-              <span className="w-2 h-2 rounded-full" style={{ background: listColor(l.id) }} /> {l.name}
-            </ChipToggle>
-          ))}
-        </ChipRow>
-        <button type="button" data-testid="quickadd-submit" onClick={submit} className="w-full py-3 rounded-2xl bg-brand-gradient text-white font-semibold shadow-card">Add task</button>
+        {lists.length === 0 ? (
+          <p className="text-center text-text-muted py-4">Create a list first to add tasks.</p>
+        ) : (
+          <>
+            <input
+              data-testid="quickadd-input"
+              autoFocus
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') submit() }}
+              placeholder="What needs doing?"
+              className="w-full bg-transparent outline-none text-[17px] font-semibold text-text placeholder:text-text-muted"
+            />
+            <ChipRow label="When">
+              {WHEN.map((w) => (
+                <ChipToggle key={w.key} active={when === w.key} onClick={() => setWhen(w.key)}>{w.label}</ChipToggle>
+              ))}
+            </ChipRow>
+            <ChipRow label="List">
+              {lists.map((l) => (
+                <ChipToggle key={l.id} active={effectiveListId === l.id} onClick={() => setListId(l.id)}>
+                  <span className="w-2 h-2 rounded-full" style={{ background: listColor(l.id) }} /> {l.name}
+                </ChipToggle>
+              ))}
+            </ChipRow>
+            <button type="button" data-testid="quickadd-submit" onClick={submit} className="w-full py-3 rounded-2xl bg-brand-gradient text-white font-semibold shadow-card">Add task</button>
+          </>
+        )}
       </div>
     </Sheet>
   )
