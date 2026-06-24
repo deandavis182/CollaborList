@@ -2,7 +2,7 @@
  * Sheet — slide-in panel for item-detail surfaces.
  *
  * Props:
- *   variant   : 'drawer' | 'fullscreen'   (default: 'drawer')
+ *   variant   : 'drawer' | 'fullscreen' | 'bottom'   (default: 'drawer')
  *   open      : boolean
  *   onClose   : function
  *   title     : string
@@ -10,6 +10,7 @@
  *
  * 'drawer'     = right-side panel (desktop)
  * 'fullscreen' = full-screen sheet (mobile)
+ * 'bottom'     = slide-up bottom sheet (mobile)
  */
 
 import { useEffect, useRef } from 'react'
@@ -50,13 +51,15 @@ export function Sheet({
   const panelClasses =
     variant === 'fullscreen'
       ? 'fixed inset-0 z-50 flex flex-col bg-surface overflow-y-auto'
-      : 'fixed top-0 right-0 h-full z-50 flex flex-col bg-surface border-l border-border shadow-xl w-full max-w-md overflow-y-auto'
+      : variant === 'bottom'
+        ? 'fixed inset-x-0 bottom-0 z-50 flex flex-col bg-surface rounded-t-4xl max-h-[86%] overflow-y-auto shadow-xl animate-[sheet-up_320ms_cubic-bezier(.32,.72,0,1)]'
+        : 'fixed top-0 right-0 h-full z-50 flex flex-col bg-surface border-l border-border shadow-xl w-full max-w-md overflow-y-auto'
 
   return (
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40 bg-black/40"
+        className={variant === 'bottom' ? 'fixed inset-0 z-40 bg-scrim' : 'fixed inset-0 z-40 bg-black/40'}
         aria-hidden="true"
         onClick={onClose}
         data-testid="sheet-backdrop"
@@ -70,6 +73,13 @@ export function Sheet({
         className={panelClasses}
         data-testid="sheet-panel"
       >
+        {/* Grab handle (bottom variant only) */}
+        {variant === 'bottom' && (
+          <div className="flex justify-center pt-3 pb-1 shrink-0">
+            <span data-testid="sheet-grab" className="w-10 h-[5px] rounded-full bg-surface-2" />
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
           {title && (

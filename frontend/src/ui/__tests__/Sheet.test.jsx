@@ -148,4 +148,12 @@ describe('Sheet', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onClose).not.toHaveBeenCalled()
   })
+
+  it('bottom variant renders a grab handle and bottom-anchored panel', () => {
+    render(<Sheet variant="bottom" open onClose={() => {}} title="Detail"><p>body</p></Sheet>)
+    expect(screen.getByTestId('sheet-grab')).toBeInTheDocument()
+    const panel = screen.getByTestId('sheet-panel')
+    expect(panel.className).toMatch(/rounded-t-4xl/)
+    expect(panel.className).toMatch(/bottom-0/)
+  })
 })
