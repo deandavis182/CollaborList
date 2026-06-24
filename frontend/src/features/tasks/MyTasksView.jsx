@@ -10,6 +10,8 @@ import { useMyTasks } from '../../lib/api.js'
 import { Chip } from '../../ui/Chip.jsx'
 import { groupTasksByDue } from './groupTasks.js'
 import { formatDay } from '../../lib/dates.js'
+import { useIsMobile } from '../../lib/useMediaQuery.js'
+import { TodayScreen } from '../mobile/TodayScreen.jsx'
 
 // ---------------------------------------------------------------------------
 // Status → Chip color map (mirrors ItemRow)
@@ -125,7 +127,7 @@ function Section({ heading, tasks }) {
 // MyTasksView
 // ---------------------------------------------------------------------------
 
-export function MyTasksView() {
+function MyTasksViewDesktop() {
   const { data: tasks = [], isLoading } = useMyTasks()
   const { overdue, today, upcoming, noDate } = groupTasksByDue(tasks)
 
@@ -153,4 +155,14 @@ export function MyTasksView() {
       )}
     </div>
   )
+}
+
+// ---------------------------------------------------------------------------
+// MyTasksView — wrapper: mounts the mobile Today screen or the desktop view.
+// Calls exactly one hook every render so rules-of-hooks holds across resizes;
+// each child owns its own hooks.
+// ---------------------------------------------------------------------------
+
+export function MyTasksView() {
+  return useIsMobile() ? <TodayScreen /> : <MyTasksViewDesktop />
 }
