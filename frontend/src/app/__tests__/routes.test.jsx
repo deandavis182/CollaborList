@@ -5,11 +5,16 @@
  * Mocks ../../lib/api so all hooks never hit the network.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import React from 'react'
+
+// ---------------------------------------------------------------------------
+// Mock useIsMobile — default to desktop (false) so route tests are unaffected
+// ---------------------------------------------------------------------------
+vi.mock('../../lib/useMediaQuery.js', () => ({ useIsMobile: vi.fn(() => false) }))
 
 // ---------------------------------------------------------------------------
 // Mock api so all hooks don't hit the network
@@ -343,9 +348,11 @@ describe('routes — AppLayout is always present', () => {
     expect(screen.getByTestId('sidebar-container')).toBeInTheDocument()
   })
 
-  it('bottom tab bar renders at /', () => {
+  it('does not render the old desktop BottomTabBar at / (superseded by MobileTabBar; desktop nav is the sidebar)', () => {
+    // useIsMobile is mocked to false → shell renders no bottom bar on desktop.
     renderAt('/')
-    expect(screen.getByTestId('bottom-tab-bar')).toBeInTheDocument()
+    expect(screen.queryByTestId('bottom-tab-bar')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('bottom-bar-container')).not.toBeInTheDocument()
   })
 })
 

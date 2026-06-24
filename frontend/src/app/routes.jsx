@@ -21,6 +21,7 @@ import { MyTasksView } from '../features/tasks/MyTasksView.jsx'
 import { ActivityFeed } from '../features/collab/ActivityFeed.jsx'
 import { ListView } from '../features/items/ListView.jsx'
 import { LoginView } from '../features/auth/LoginView.jsx'
+import { MeScreen } from '../features/mobile/MeScreen.jsx'
 import { RequireAuth } from '../features/auth/RequireAuth.jsx'
 import { Sheet } from '../ui/Sheet.jsx'
 import { Button } from '../ui/Button.jsx'
@@ -318,6 +319,7 @@ export function AppRoutes() {
       <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
         <Route index element={<MyTasksView />} />
         <Route path="my-tasks" element={<MyTasksView />} />
+        <Route path="me" element={<MeScreen />} />
         <Route path="w/:workspaceId" element={<WorkspaceView />} />
         <Route path="w/:workspaceId/activity" element={<ActivityFeedRoute />} />
         <Route path="w/:workspaceId/p/:projectId" element={<ProjectView />} />
@@ -351,6 +353,7 @@ export function createAppRouter() {
       children: [
         { index: true, element: <MyTasksView /> },
         { path: 'my-tasks', element: <MyTasksView /> },
+        { path: 'me', element: <MeScreen /> },
         { path: 'w/:workspaceId', element: <WorkspaceView /> },
         { path: 'w/:workspaceId/activity', element: <ActivityFeedRoute /> },
         { path: 'w/:workspaceId/p/:projectId', element: <ProjectView /> },
