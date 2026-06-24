@@ -6,9 +6,9 @@ import { useStore } from '../../lib/store.js'
 import { Avatar } from '../../ui/Avatar.jsx'
 import { SegmentedControl } from '../../ui/SegmentedControl.jsx'
 import { NotificationPrefs } from '../notifications/NotificationPrefs.jsx'
+import { isCompletedToday } from '../tasks/groupTasks.js'
 
 const THEME_OPTIONS = [{ value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }]
-const today = () => new Date().toISOString().slice(0, 10)
 
 export function MeScreen() {
   const navigate = useNavigate()
@@ -20,7 +20,7 @@ export function MeScreen() {
   const [notifOpen, setNotifOpen] = useState(false)
 
   const open = tasks.filter((t) => !t.completed).length
-  const doneToday = tasks.filter((t) => t.completed && (t.due_date || '').slice(0, 10) === today()).length
+  const doneToday = tasks.filter((t) => isCompletedToday(t)).length
   const name = (user?.email || '').split('@')[0]
 
   return (

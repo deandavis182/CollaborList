@@ -26,7 +26,6 @@ export default {
         md:    'var(--radius-md)',
         lg:    'var(--radius-lg)',
         xl:    '14px',
-        lg2:   '16px',
         '2xl': '18px',
         '3xl': '24px',
         '4xl': '28px',

@@ -1,5 +1,5 @@
 import { useMyTasks } from '../../lib/api.js'
-import { groupTasksByDue } from '../tasks/groupTasks.js'
+import { groupTasksByDue, isCompletedToday } from '../tasks/groupTasks.js'
 import { getUser } from '../../lib/auth.js'
 import { useStore } from '../../lib/store.js'
 import { FocusCard } from './FocusCard.jsx'
@@ -34,7 +34,7 @@ export function TodayScreen() {
 
   const openOverdue = groups.overdue.length
   const openToday = groups.today.filter((t) => !t.completed).length
-  const completedToday = tasks.filter((t) => t.completed && (t.due_date || '').slice(0, 10) === new Date().toISOString().slice(0, 10)).length
+  const completedToday = tasks.filter((t) => isCompletedToday(t)).length
   const denom = openOverdue + openToday + completedToday
   const percent = denom ? Math.round((completedToday / denom) * 100) : 100
   const needed = openOverdue + openToday

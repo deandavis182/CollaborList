@@ -40,6 +40,20 @@ function cmpDay(a, b) {
   return 0
 }
 
+/**
+ * isCompletedToday — returns true when a task is completed and its due_date
+ * falls on the same UTC calendar day as `now` (ISO date slice, same logic
+ * used by TodayScreen and MeScreen).
+ *
+ * @param {object} task — task object with `completed` and `due_date` fields
+ * @param {Date}   now  — reference point (default: new Date())
+ * @returns {boolean}
+ */
+export function isCompletedToday(task, now = new Date()) {
+  const today = now.toISOString().slice(0, 10)
+  return Boolean(task.completed && (task.due_date || '').slice(0, 10) === today)
+}
+
 export function groupTasksByDue(tasks, now = new Date()) {
   const result = { overdue: [], today: [], upcoming: [], noDate: [] }
 

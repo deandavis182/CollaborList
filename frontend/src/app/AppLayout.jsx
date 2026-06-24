@@ -141,11 +141,7 @@ export function AppLayout({ children }) {
         </main>
       </div>
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Bottom navigation — mobile only: MobileTabBar + global sheets        */}
-      {/* (Desktop navigation lives in the Sidebar; the old BottomTabBar is    */}
-      {/*  superseded by MobileTabBar and no longer mounted by the shell.)     */}
-      {/* ------------------------------------------------------------------ */}
+      {/* Bottom navigation — mobile only: MobileTabBar + global sheets */}
       {isMobile && (
         <>
           <MobileTabBar
