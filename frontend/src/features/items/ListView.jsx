@@ -4,14 +4,18 @@
  * Mounts:
  *   - <ViewContainer>    : all 4 view lenses (list / board / calendar / timeline)
  *   - <ItemDetailDrawer> : the single detail surface (always mounted)
+ *
+ * On mobile (≤767px), renders MobileListDetail instead of the desktop layout.
  */
 
 import { useParams } from 'react-router-dom'
 import { useWorkspaceMembers, useListItems } from '../../lib/api.js'
 import { ViewContainer } from '../views/ViewContainer.jsx'
 import { ItemDetailDrawer } from './ItemDetailDrawer.jsx'
+import { useIsMobile } from '../../lib/useMediaQuery.js'
+import { MobileListDetail } from '../mobile/MobileListDetail.jsx'
 
-export function ListView() {
+function ListViewDesktop() {
   const { workspaceId, projectId, listId } = useParams()
 
   const { data: members = [] } = useWorkspaceMembers(workspaceId)
@@ -37,4 +41,8 @@ export function ListView() {
       <ItemDetailDrawer listId={String(listId)} workspaceId={String(workspaceId)} />
     </div>
   )
+}
+
+export function ListView() {
+  return useIsMobile() ? <MobileListDetail /> : <ListViewDesktop />
 }
