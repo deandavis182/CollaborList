@@ -92,6 +92,16 @@ describe('tokens.css — light theme (:root)', () => {
   })
 })
 
+describe('tokens.css — mobile redesign tokens', () => {
+  test('--gradient-brand is defined in :root', () => {
+    expect(extractVar(rootBlock, '--gradient-brand')).not.toBeNull()
+  })
+
+  test('--gradient-brand is defined in [data-theme="dark"]', () => {
+    expect(extractVar(darkBlock, '--gradient-brand')).not.toBeNull()
+  })
+})
+
 describe('tokens.css — dark theme ([data-theme="dark"])', () => {
   test('[data-theme="dark"] block exists', () => {
     expect(darkBlock).not.toBeNull()

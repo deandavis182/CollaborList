@@ -65,6 +65,18 @@
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   --dur-fast:  150ms;
   --dur-base:  250ms;
+
+  /* ─── Mobile redesign — net-new ───────────────────────────── */
+  --gradient-brand: linear-gradient(140deg,#8B7CFF 0%,#A579D6 48%,#C4788A 100%);
+  --tint-primary: rgba(124,111,247,.13);
+  --tint-accent:  rgba(196,120,138,.15);
+  --tint-success: rgba(61,140,106,.14);
+  --tint-warning: rgba(192,122,43,.15);
+  --tint-danger:  rgba(192,68,58,.13);
+  --shadow-card:  0 1px 2px rgba(34,32,30,.05), 0 6px 16px rgba(34,32,30,.06);
+  --color-tabbar: rgba(255,255,255,.78);
+  --color-scrim:  rgba(34,32,30,.32);
+  --font-display: 'Bricolage Grotesque', -apple-system, system-ui, sans-serif;
 }
 
 /* ─── Colour — Dark overrides ───────────────────────────────── */
@@ -86,4 +98,14 @@
   --color-danger:       #C0443A;
 
   --color-border:       #332E29;   /* dark warm divider */
+
+  --gradient-brand: linear-gradient(140deg,#7E73E8 0%,#9A78C8 48%,#C77E90 100%);
+  --tint-primary: rgba(157,150,255,.18);
+  --tint-accent:  rgba(224,154,172,.18);
+  --tint-success: rgba(74,168,126,.18);
+  --tint-warning: rgba(192,122,43,.18);
+  --tint-danger:  rgba(192,68,58,.18);
+  --shadow-card:  0 1px 2px rgba(0,0,0,.4), 0 6px 16px rgba(0,0,0,.45);
+  --color-tabbar: rgba(30,27,24,.78);
+  --color-scrim:  rgba(0,0,0,.5);
 }

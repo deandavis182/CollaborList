@@ -18,11 +18,27 @@ export default {
         success:     'var(--color-success)',
         warning:     'var(--color-warning)',
         danger:      'var(--color-danger)',
+        tabbar:      'var(--color-tabbar)',
+        scrim:       'var(--color-scrim)',
       },
       borderRadius: {
-        sm: 'var(--radius-sm)',
-        md: 'var(--radius-md)',
-        lg: 'var(--radius-lg)',
+        sm:    'var(--radius-sm)',
+        md:    'var(--radius-md)',
+        lg:    'var(--radius-lg)',
+        xl:    '14px',
+        lg2:   '16px',
+        '2xl': '18px',
+        '3xl': '24px',
+        '4xl': '28px',
+      },
+      fontFamily: {
+        display: 'var(--font-display)',
+      },
+      backgroundImage: {
+        'brand-gradient': 'var(--gradient-brand)',
+      },
+      boxShadow: {
+        card: 'var(--shadow-card)',
       },
       fontSize: {
         xs:   'var(--text-xs)',

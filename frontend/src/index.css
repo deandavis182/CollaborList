@@ -1,3 +1,6 @@
+@import '@fontsource/bricolage-grotesque/700.css';
+@import '@fontsource/bricolage-grotesque/800.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
