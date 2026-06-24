@@ -5,8 +5,10 @@
  *   variant   : 'drawer' | 'fullscreen' | 'bottom'   (default: 'drawer')
  *   open      : boolean
  *   onClose   : function
- *   title     : string
- *   children  : ReactNode
+ *   title       : string
+ *   titleHidden : boolean  — when true, names the dialog via aria-label but
+ *                            renders no visible header bar (title + close button)
+ *   children    : ReactNode
  *
  * 'drawer'     = right-side panel (desktop)
  * 'fullscreen' = full-screen sheet (mobile)
@@ -20,6 +22,7 @@ export function Sheet({
   open = false,
   onClose,
   title,
+  titleHidden = false,
   children,
 }) {
   const closeButtonRef = useRef(null)
@@ -80,36 +83,38 @@ export function Sheet({
           </div>
         )}
 
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
-          {title && (
-            <h2 className="text-lg font-semibold text-text">{title}</h2>
-          )}
-          <button
-            ref={closeButtonRef}
-            type="button"
-            aria-label="Close"
-            onClick={onClose}
-            className="ml-auto rounded-md p-1 text-text-muted hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            {/* × icon */}
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
+        {/* Header — hidden when titleHidden (dialog is still named via aria-label) */}
+        {!titleHidden && (
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
+            {title && (
+              <h2 className="text-lg font-semibold text-text">{title}</h2>
+            )}
+            <button
+              ref={closeButtonRef}
+              type="button"
+              aria-label="Close"
+              onClick={onClose}
+              className="ml-auto rounded-md p-1 text-text-muted hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
+              {/* × icon */}
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        )}
 
         {/* Body */}
         <div className="flex-1 px-6 py-4">{children}</div>
