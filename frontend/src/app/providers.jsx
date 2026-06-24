@@ -63,10 +63,18 @@ export function Providers({ children }) {
 
     const socket = createSocket(token)
     useStore.getState().setSocket(socket)
+    const onConnect = () => useStore.getState().setSocketConnected(true)
+    const onDisconnect = () => useStore.getState().setSocketConnected(false)
+    socket.on?.('connect', onConnect)
+    socket.on?.('disconnect', onDisconnect)
+    useStore.getState().setSocketConnected(Boolean(socket.connected))
     const cleanup = registerSocketHandlers(socket, queryClient)
 
     return () => {
       cleanup()
+      socket.off?.('connect', onConnect)
+      socket.off?.('disconnect', onDisconnect)
+      useStore.getState().setSocketConnected(false)
       socket.disconnect?.()
       useStore.getState().setSocket(null)
     }

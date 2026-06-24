@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getUser, logout } from '../../lib/auth.js'
-import { useMyTasks } from '../../lib/api.js'
+import { useMyTasks, useWorkspaces } from '../../lib/api.js'
 import { useStore } from '../../lib/store.js'
 import { Avatar } from '../../ui/Avatar.jsx'
 import { SegmentedControl } from '../../ui/SegmentedControl.jsx'
@@ -14,14 +14,17 @@ export function MeScreen() {
   const navigate = useNavigate()
   const user = getUser()
   const { data: tasks = [] } = useMyTasks()
+  const { data: workspaces = [] } = useWorkspaces()
   const theme = useStore((s) => s.theme)
   const setTheme = useStore((s) => s.setTheme)
   const currentWorkspaceId = useStore((s) => s.currentWorkspaceId)
+  const socketConnected = useStore((s) => s.socketConnected)
   const [notifOpen, setNotifOpen] = useState(false)
 
   const open = tasks.filter((t) => !t.completed).length
   const doneToday = tasks.filter((t) => isCompletedToday(t)).length
   const name = (user?.email || '').split('@')[0]
+  const wsId = currentWorkspaceId ?? workspaces[0]?.id
 
   return (
     <div data-testid="me-screen" className="px-[18px] pt-[62px] pb-[116px] space-y-5 min-h-full bg-bg">
@@ -43,9 +46,9 @@ export function MeScreen() {
 
       <section className="rounded-2xl border border-border bg-surface shadow-card overflow-hidden">
         <Row label="Notifications" onClick={() => setNotifOpen(true)} />
-        <Row label="Live sync" />
-        <Row label="Workspace" onClick={() => currentWorkspaceId && navigate(`/w/${currentWorkspaceId}`)} />
-        <Row label="Members" onClick={() => currentWorkspaceId && navigate(`/w/${currentWorkspaceId}`)} last />
+        <StatusRow label="Live sync" ok={socketConnected} status={socketConnected ? 'Connected' : 'Offline'} />
+        <Row label="Workspace" onClick={() => wsId && navigate(`/w/${wsId}`)} />
+        <Row label="Members" onClick={() => wsId && navigate(`/w/${wsId}`)} last />
       </section>
 
       <button type="button" onClick={() => { logout(); window.location.assign('/login') }} className="w-full py-3 rounded-2xl bg-danger text-white font-semibold">Log out</button>
@@ -70,5 +73,17 @@ function Row({ label, onClick, last = false }) {
       <span>{label}</span>
       <span aria-hidden="true" className="text-text-muted">›</span>
     </button>
+  )
+}
+
+function StatusRow({ label, ok, status, last = false }) {
+  return (
+    <div className={['w-full flex items-center justify-between px-4 py-3.5 text-[15px] text-text', last ? '' : 'border-b border-border'].join(' ')}>
+      <span>{label}</span>
+      <span className="flex items-center gap-2 text-[13px] text-text-muted">
+        <span className={['w-2 h-2 rounded-full', ok ? 'bg-success' : 'bg-text-muted'].join(' ')} aria-hidden="true" />
+        {status}
+      </span>
+    </div>
   )
 }

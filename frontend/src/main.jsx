@@ -27,5 +27,15 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 )
 
 if ('serviceWorker' in navigator) {
+  // Capture whether the page is already controlled BEFORE any new worker claims.
+  const hadController = !!navigator.serviceWorker.controller
+  let reloading = false
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    // Only auto-reload when an existing controller is replaced (a deploy update),
+    // never on the first install, and guard against reload loops.
+    if (reloading || !hadController) return
+    reloading = true
+    window.location.reload()
+  })
   window.addEventListener('load', () => { registerServiceWorker() })
 }

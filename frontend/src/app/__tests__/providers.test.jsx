@@ -9,7 +9,12 @@ import { useStore } from '../../lib/store.js'
 // ---------------------------------------------------------------------------
 const mockDisconnect = vi.fn()
 const mockCleanup = vi.fn()
-const mockSocket = { disconnect: mockDisconnect }
+const mockSocket = {
+  disconnect: mockDisconnect,
+  on: vi.fn(),
+  off: vi.fn(),
+  connected: false,
+}
 
 vi.mock('../../lib/socket.js', () => ({
   createSocket: vi.fn(() => mockSocket),

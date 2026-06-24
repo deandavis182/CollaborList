@@ -104,8 +104,10 @@ export const useStore = create((set) => ({
   // Socket — the active socket.io instance; set by providers.jsx
   // ---------------------------------------------------------------------------
   socket: null,
+  socketConnected: false,
 
   setSocket: (socket) => set({ socket }),
+  setSocketConnected: (v) => set({ socketConnected: v }),
 
   // ---------------------------------------------------------------------------
   // Theme

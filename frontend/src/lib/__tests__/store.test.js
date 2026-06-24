@@ -205,6 +205,25 @@ describe('useStore — mobile extensions', () => {
   })
 })
 
+describe('useStore — socketConnected', () => {
+  beforeEach(resetStore)
+
+  it('starts with socketConnected false', () => {
+    expect(useStore.getState().socketConnected).toBe(false)
+  })
+
+  it('setSocketConnected(true) sets socketConnected to true', () => {
+    useStore.getState().setSocketConnected(true)
+    expect(useStore.getState().socketConnected).toBe(true)
+  })
+
+  it('setSocketConnected(false) sets socketConnected back to false', () => {
+    useStore.getState().setSocketConnected(true)
+    useStore.getState().setSocketConnected(false)
+    expect(useStore.getState().socketConnected).toBe(false)
+  })
+})
+
 describe('useStore — global toast', () => {
   beforeEach(resetStore)
 
