@@ -734,6 +734,8 @@ export function useCreateList(projectId) {
 
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['projectLists', projectId] })
+      // Also refresh the flat all-lists query used by the mobile Lists tab + quick-add.
+      queryClient.invalidateQueries({ queryKey: ['lists'] })
     },
   })
 }
@@ -758,6 +760,8 @@ export function useRenameList(projectId) {
 
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['projectLists', projectId] })
+      // Also refresh the flat all-lists query used by the mobile Lists tab + quick-add.
+      queryClient.invalidateQueries({ queryKey: ['lists'] })
     },
   })
 }
@@ -800,6 +804,8 @@ export function useDeleteList(projectId) {
 
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['projectLists', projectId] })
+      // Also refresh the flat all-lists query used by the mobile Lists tab + quick-add.
+      queryClient.invalidateQueries({ queryKey: ['lists'] })
     },
   })
 }
