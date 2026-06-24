@@ -8,15 +8,14 @@
  * Using window.location.assign (rather than a React Router navigate) is the
  * intentional design: it avoids the socket-reconnect-without-reload problem.
  *
- * Google OAuth: omitted — see TODO below. Email/password is the required path.
- *
- * TODO: add Google OAuth ("Continue with Google") when VITE_GOOGLE_CLIENT_ID
- * is available.  Mirror RealtimeApp.jsx's flow: render the Google Identity
- * Services script, call google.accounts.id.initialize + prompt, then POST to
- * /auth/google { credential }.
+ * Google OAuth: when VITE_GOOGLE_CLIENT_ID is baked into the build (the frontend
+ * Dockerfile sets it from the GOOGLE_CLIENT_ID build arg), a "Continue with
+ * Google" button is rendered via Google Identity Services. The GIS script is
+ * loaded in index.html. On credential, POST /auth/google { credential } →
+ * { token, user }, then the same setAuth + full reload flow as password login.
  */
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { apiClient } from '../../lib/api.js'
 import { setAuth } from '../../lib/auth.js'
 import { getApiError } from '../../lib/apiError.js'
@@ -31,6 +30,13 @@ import { Card } from '../../ui/Card.jsx'
 const PASSWORD_HINT =
   'At least 8 characters with one uppercase, one lowercase, and one number.'
 
+// Resolve the Google OAuth client id baked in at build time. Read inside a
+// function (not a module const) so tests can stub the env before render.
+export function googleClientId() {
+  const id = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
+  return id && !id.includes('your-') ? id : ''
+}
+
 // ---------------------------------------------------------------------------
 // LoginView
 // ---------------------------------------------------------------------------
@@ -43,6 +49,9 @@ export function LoginView() {
   const [isPending, setIsPending] = useState(false)
 
   const isSignup = mode === 'signup'
+  const clientId = googleClientId()
+  const googleEnabled = Boolean(clientId)
+  const googleBtnRef = useRef(null)
 
   function toggleMode() {
     setMode((m) => (m === 'login' ? 'signup' : 'login'))
@@ -66,6 +75,54 @@ export function LoginView() {
     }
   }
 
+  // ── Google Identity Services: render the official button + handle credential ──
+  useEffect(() => {
+    if (!googleEnabled) return
+    let cancelled = false
+
+    async function handleCredential(response) {
+      if (!response || !response.credential) return
+      try {
+        const { data } = await apiClient.post('/auth/google', {
+          credential: response.credential,
+        })
+        setAuth(data)
+        window.location.assign('/')
+      } catch (err) {
+        setError(getApiError(err))
+      }
+    }
+
+    function init() {
+      if (cancelled) return
+      const gid = window.google && window.google.accounts && window.google.accounts.id
+      // The GIS script (index.html) loads async — retry until it's ready.
+      if (!gid) {
+        setTimeout(init, 200)
+        return
+      }
+      try {
+        gid.initialize({ client_id: clientId, callback: handleCredential })
+        if (googleBtnRef.current) {
+          gid.renderButton(googleBtnRef.current, {
+            theme: 'outline',
+            size: 'large',
+            text: 'continue_with',
+            width: '320',
+          })
+        }
+      } catch (e) {
+        // Non-fatal: leave the password form as the fallback path.
+        console.error('Google Sign-In init failed:', e)
+      }
+    }
+
+    init()
+    return () => {
+      cancelled = true
+    }
+  }, [googleEnabled, clientId])
+
   return (
     <div
       data-testid="login-view"
@@ -85,6 +142,22 @@ export function LoginView() {
             className="mb-4 rounded-md bg-danger/10 border border-danger/30 px-4 py-3 text-sm text-danger"
           >
             {error}
+          </div>
+        )}
+
+        {/* Google Sign-In — rendered when a client id is configured */}
+        {googleEnabled && (
+          <div className="mb-5 flex flex-col items-center gap-4">
+            <div
+              ref={googleBtnRef}
+              data-testid="google-signin"
+              className="flex justify-center min-h-[40px]"
+            />
+            <div className="flex items-center gap-3 w-full">
+              <span className="h-px flex-1 bg-border" />
+              <span className="text-xs text-text-muted">or</span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
           </div>
         )}
 

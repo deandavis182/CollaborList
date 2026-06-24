@@ -8,7 +8,7 @@
  *     Object.defineProperty so navigation assertions work in jsdom.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import React from 'react'
 
@@ -296,5 +296,55 @@ describe('LoginView — error handling', () => {
     })
 
     expect(screen.getByTestId('auth-submit')).not.toBeDisabled()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Google Sign-In path (VITE_GOOGLE_CLIENT_ID present)
+// ---------------------------------------------------------------------------
+
+describe('LoginView — Google Sign-In', () => {
+  let initializeSpy
+  let renderButtonSpy
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', 'test-client.apps.googleusercontent.com')
+    initializeSpy = vi.fn()
+    renderButtonSpy = vi.fn()
+    window.google = { accounts: { id: { initialize: initializeSpy, renderButton: renderButtonSpy } } }
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    delete window.google
+  })
+
+  it('renders the Google button container and initializes GIS when a client id is configured', async () => {
+    render(<LoginView />)
+    expect(screen.getByTestId('google-signin')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(initializeSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ client_id: 'test-client.apps.googleusercontent.com' })
+      )
+      expect(renderButtonSpy).toHaveBeenCalled()
+    })
+  })
+
+  it('on Google credential, posts to /auth/google and stores auth', async () => {
+    apiClient.post.mockResolvedValueOnce({
+      data: { token: 'g-tok', user: { id: 9, email: 'g@example.com' } },
+    })
+    render(<LoginView />)
+    await waitFor(() => expect(initializeSpy).toHaveBeenCalled())
+
+    // Invoke the callback GIS would call with a credential.
+    const { callback } = initializeSpy.mock.calls[0][0]
+    await callback({ credential: 'google-jwt-xyz' })
+
+    await waitFor(() => {
+      expect(apiClient.post).toHaveBeenCalledWith('/auth/google', { credential: 'google-jwt-xyz' })
+      expect(setAuth).toHaveBeenCalledWith({ token: 'g-tok', user: { id: 9, email: 'g@example.com' } })
+    })
   })
 })
