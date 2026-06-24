@@ -19,6 +19,7 @@ import { TagManager } from '../features/tags/TagManager.jsx'
 import { MemberManager } from '../features/members/MemberManager.jsx'
 import { MyTasksView } from '../features/tasks/MyTasksView.jsx'
 import { ActivityFeed } from '../features/collab/ActivityFeed.jsx'
+import { ActivityScreen } from '../features/mobile/ActivityScreen.jsx'
 import { ListView } from '../features/items/ListView.jsx'
 import { LoginView } from '../features/auth/LoginView.jsx'
 import { MeScreen } from '../features/mobile/MeScreen.jsx'
@@ -292,16 +293,25 @@ export function ProjectView() {
 export { ProjectViewFeature as ProjectViewFeature }
 
 // ---------------------------------------------------------------------------
-// ActivityFeedRoute — reads workspaceId from URL params and passes to ActivityFeed
+// ActivityRoute — branches between ActivityScreen (mobile) and ActivityFeed (desktop)
 // ---------------------------------------------------------------------------
 
 /**
- * Thin wrapper that reads :workspaceId from the URL and passes it to
- * ActivityFeed — mirrors the pattern used by WorkspaceView and ProjectView.
+ * ActivityRoute uses the wrapper pattern (no conditional hook call at top level)
+ * to avoid conditional-hooks violations. On mobile it renders ActivityScreen;
+ * on desktop it reads :workspaceId from the URL and passes it to ActivityFeed.
+ */
+export function ActivityRoute() {
+  const { workspaceId } = useParams()
+  return useIsMobile() ? <ActivityScreen /> : <ActivityFeed workspaceId={workspaceId} />
+}
+
+/**
+ * ActivityFeedRoute — kept for backwards compatibility; delegates to ActivityRoute.
+ * @deprecated Use ActivityRoute instead.
  */
 export function ActivityFeedRoute() {
-  const { workspaceId } = useParams()
-  return <ActivityFeed workspaceId={workspaceId} />
+  return <ActivityRoute />
 }
 
 // ---------------------------------------------------------------------------
@@ -336,7 +346,7 @@ export function AppRoutes() {
         <Route path="my-tasks" element={<MyTasksView />} />
         <Route path="me" element={<MeScreen />} />
         <Route path="w/:workspaceId" element={<WorkspaceView />} />
-        <Route path="w/:workspaceId/activity" element={<ActivityFeedRoute />} />
+        <Route path="w/:workspaceId/activity" element={<ActivityRoute />} />
         <Route path="w/:workspaceId/p/:projectId" element={<ProjectView />} />
         <Route path="w/:workspaceId/p/:projectId/l/:listId" element={<ListView />} />
       </Route>
@@ -370,7 +380,7 @@ export function createAppRouter() {
         { path: 'my-tasks', element: <MyTasksView /> },
         { path: 'me', element: <MeScreen /> },
         { path: 'w/:workspaceId', element: <WorkspaceView /> },
-        { path: 'w/:workspaceId/activity', element: <ActivityFeedRoute /> },
+        { path: 'w/:workspaceId/activity', element: <ActivityRoute /> },
         { path: 'w/:workspaceId/p/:projectId', element: <ProjectView /> },
         { path: 'w/:workspaceId/p/:projectId/l/:listId', element: <ListView /> },
       ],
