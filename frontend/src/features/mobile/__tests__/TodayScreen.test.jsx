@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
-vi.mock('../../../lib/api.js', () => ({ useMyTasks: vi.fn() }))
+vi.mock('../../../lib/api.js', () => ({ useMyTasks: vi.fn(), useUpdateItem: () => ({ mutate: vi.fn() }) }))
 vi.mock('../../../lib/auth.js', () => ({ getUser: () => ({ email: 'devin@example.com' }) }))
 import { useMyTasks } from '../../../lib/api.js'
 import { TodayScreen } from '../TodayScreen.jsx'
