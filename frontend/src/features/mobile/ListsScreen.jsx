@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useMyTasks } from '../../lib/api.js'
+import { useMyTasks, useWorkspaceMembers } from '../../lib/api.js'
 import { useStore } from '../../lib/store.js'
 import { listColor, listTint } from '../../lib/listColor.js'
 import { TaskResultRow } from './TaskResultRow.jsx'
@@ -33,9 +33,13 @@ export function ListsScreen() {
   const searchQuery = useStore((s) => s.searchQuery)
   const setSearchQuery = useStore((s) => s.setSearchQuery)
   const openItem = useStore((s) => s.openItem)
+  const currentWorkspaceId = useStore((s) => s.currentWorkspaceId)
+  const { data: members = [] } = useWorkspaceMembers(currentWorkspaceId)
+  const emailById = useMemo(() => Object.fromEntries(members.map((m) => [m.user_id, m.email])), [members])
+  const enriched = useMemo(() => tasks.map((t) => ({ ...t, assignee_email: emailById[t.assignee_id] })), [tasks, emailById])
 
-  const lists = useMemo(() => deriveLists(tasks), [tasks])
-  const results = useMemo(() => filterTasks(tasks, searchQuery), [tasks, searchQuery])
+  const lists = useMemo(() => deriveLists(enriched), [enriched])
+  const results = useMemo(() => filterTasks(enriched, searchQuery), [enriched, searchQuery])
   const searching = searchQuery.trim().length > 0
 
   return (
@@ -63,7 +67,7 @@ export function ListsScreen() {
             <p className="text-center text-text-muted py-10">No tasks match your search</p>
           ) : (
             results.map((t) => (
-              <TaskResultRow key={t.id} task={t} showListContext onOpen={() => openItem(t.id, { listId: t.list_id, workspaceId: t.workspace_id })} />
+              <TaskResultRow key={t.id} task={t} assigneeEmail={t.assignee_email} showListContext onOpen={() => openItem(t.id, { listId: t.list_id, workspaceId: t.workspace_id })} />
             ))
           )}
         </div>
