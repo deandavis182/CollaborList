@@ -11,6 +11,12 @@ vi.mock('../../../lib/api.js', () => ({
   useCreateWorkspace: vi.fn(),
 }))
 
+// Mock react-router's useNavigate so the component can navigate without a Router.
+const navigateMock = vi.fn()
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => navigateMock,
+}))
+
 import { useWorkspaces, useCreateWorkspace } from '../../../lib/api.js'
 import { useStore } from '../../../lib/store.js'
 import { WorkspaceSwitcher } from '../WorkspaceSwitcher.jsx'
@@ -85,7 +91,8 @@ describe('WorkspaceSwitcher', () => {
     expect(screen.getByTestId('workspace-item-2')).not.toHaveAttribute('aria-current')
   })
 
-  it('clicking a workspace calls setCurrentWorkspace with that id', () => {
+  it('clicking a workspace sets the store id AND navigates to its overview', () => {
+    navigateMock.mockClear()
     useWorkspaces.mockReturnValue({
       data: [{ id: 42, name: 'My Workspace', role: 'owner' }],
       isLoading: false,
@@ -96,6 +103,7 @@ describe('WorkspaceSwitcher', () => {
     fireEvent.click(screen.getByTestId('workspace-item-42'))
 
     expect(useStore.getState().currentWorkspaceId).toBe(42)
+    expect(navigateMock).toHaveBeenCalledWith('/w/42')
   })
 
   it('shows loading state while workspaces are loading', () => {

@@ -143,7 +143,7 @@ export function WorkspaceView() {
           data-testid="workspace-settings-btn"
           aria-label="Workspace settings"
         >
-          Settings
+          Workspace settings
         </Button>
       </div>
 
@@ -265,7 +265,7 @@ export function ProjectView() {
           data-testid="project-settings-btn"
           aria-label="Project settings"
         >
-          Settings
+          Project settings
         </Button>
       </div>
 

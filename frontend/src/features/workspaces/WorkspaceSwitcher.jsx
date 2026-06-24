@@ -3,10 +3,13 @@
  * provides a "+ New workspace" action that opens CreateWorkspaceDialog.
  *
  * Reads from useWorkspaces() and the store's currentWorkspaceId.
- * Calls setCurrentWorkspace(id) on selection.
+ * On selection it both updates the store AND navigates to the workspace
+ * overview (/w/:id) — that page hosts Workspace Settings (Tags + Members),
+ * so without the navigation the members UI was unreachable by clicking.
  */
 
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useWorkspaces } from '../../lib/api.js'
 import { useStore } from '../../lib/store.js'
 import { Avatar } from '../../ui/Avatar.jsx'
@@ -17,8 +20,14 @@ export function WorkspaceSwitcher() {
   const { data: workspaces = [], isLoading } = useWorkspaces()
   const currentWorkspaceId = useStore((s) => s.currentWorkspaceId)
   const setCurrentWorkspace = useStore((s) => s.setCurrentWorkspace)
+  const navigate = useNavigate()
 
   const [dialogOpen, setDialogOpen] = useState(false)
+
+  function selectWorkspace(id) {
+    setCurrentWorkspace(id)
+    navigate(`/w/${id}`)
+  }
 
   return (
     <div className="flex flex-col gap-1" data-testid="workspace-switcher">
@@ -36,7 +45,7 @@ export function WorkspaceSwitcher() {
                   type="button"
                   data-testid={`workspace-item-${ws.id}`}
                   aria-current={isActive ? 'page' : undefined}
-                  onClick={() => setCurrentWorkspace(ws.id)}
+                  onClick={() => selectWorkspace(ws.id)}
                   className={[
                     'w-full flex items-center gap-2 px-2 py-2 rounded-md text-sm font-medium transition-colors text-left',
                     isActive
