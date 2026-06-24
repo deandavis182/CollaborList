@@ -4,6 +4,15 @@ import { create } from 'zustand'
  * Zustand store for EPHEMERAL UI and real-time state.
  * Server data lives in React Query; this store holds only UI-driven state.
  */
+
+function initialTheme() {
+  if (typeof localStorage !== 'undefined') {
+    const t = localStorage.getItem('theme')
+    if (t === 'light' || t === 'dark') return t
+  }
+  return 'light'
+}
+
 export const useStore = create((set) => ({
   // ---------------------------------------------------------------------------
   // Navigation / selection
@@ -18,9 +27,23 @@ export const useStore = create((set) => ({
   // Detail sheet — which item's detail panel is open
   // ---------------------------------------------------------------------------
   detailItemId: null,
+  detailContext: null,
 
   openDetail: (id) => set({ detailItemId: id }),
-  closeDetail: () => set({ detailItemId: null }),
+  openItem: (id, ctx = null) => set({ detailItemId: id, detailContext: ctx }),
+  closeDetail: () => set({ detailItemId: null, detailContext: null }),
+
+  // ---------------------------------------------------------------------------
+  // Search (Lists screen, mobile)
+  // ---------------------------------------------------------------------------
+  searchQuery: '',
+  setSearchQuery: (q) => set({ searchQuery: q }),
+
+  // ---------------------------------------------------------------------------
+  // Quick-add sheet (mobile FAB)
+  // ---------------------------------------------------------------------------
+  quickAddOpen: false,
+  setQuickAddOpen: (open) => set({ quickAddOpen: open }),
 
   // ---------------------------------------------------------------------------
   // Presence — populated by Phase 3 socket handlers
@@ -79,8 +102,16 @@ export const useStore = create((set) => ({
   // ---------------------------------------------------------------------------
   // Theme
   // ---------------------------------------------------------------------------
-  theme: 'light',
+  theme: initialTheme(),
 
+  setTheme: (theme) => {
+    if (typeof localStorage !== 'undefined') localStorage.setItem('theme', theme)
+    set({ theme })
+  },
   toggleTheme: () =>
-    set((state) => ({ theme: state.theme === 'light' ? 'dark' : 'light' })),
+    set((state) => {
+      const theme = state.theme === 'light' ? 'dark' : 'light'
+      if (typeof localStorage !== 'undefined') localStorage.setItem('theme', theme)
+      return { theme }
+    }),
 }))
