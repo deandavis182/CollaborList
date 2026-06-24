@@ -1,9 +1,11 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useMyTasks, useWorkspaceMembers, useLists } from '../../lib/api.js'
+import { useMyTasks, useAccessibleItems, useLists } from '../../lib/api.js'
+import { getUser } from '../../lib/auth.js'
 import { useStore } from '../../lib/store.js'
 import { listColor, listTint } from '../../lib/listColor.js'
 import { TaskResultRow } from './TaskResultRow.jsx'
+import { SegmentedControl } from '../../ui/SegmentedControl.jsx'
 
 export function filterTasks(tasks, q) {
   const s = q.trim().toLowerCase()
@@ -17,19 +19,24 @@ export function filterTasks(tasks, q) {
 }
 
 export function ListsScreen() {
-  const { data: tasks = [] } = useMyTasks()
+  const [searchScope, setSearchScope] = useState('mine')
+  const { data: myTasks = [] } = useMyTasks()
+  const { data: accessibleItems = [] } = useAccessibleItems({ enabled: searchScope === 'all' })
+  const corpus = searchScope === 'all' ? accessibleItems : myTasks
   const { data: lists = [] } = useLists()
   const navigate = useNavigate()
   const searchQuery = useStore((s) => s.searchQuery)
   const setSearchQuery = useStore((s) => s.setSearchQuery)
   const openItem = useStore((s) => s.openItem)
-  const currentWorkspaceId = useStore((s) => s.currentWorkspaceId)
-  const { data: members = [] } = useWorkspaceMembers(currentWorkspaceId)
-  const emailById = useMemo(() => Object.fromEntries(members.map((m) => [m.user_id, m.email])), [members])
-  const enriched = useMemo(() => tasks.map((t) => ({ ...t, assignee_email: emailById[t.assignee_id] })), [tasks, emailById])
 
-  const results = useMemo(() => filterTasks(enriched, searchQuery), [enriched, searchQuery])
+  const results = useMemo(() => filterTasks(corpus, searchQuery), [corpus, searchQuery])
   const searching = searchQuery.trim().length > 0
+
+  // Reset to "Mine" whenever the search clears, so each new search starts in the
+  // default scope and the Everyone (/me/items) fetch isn't pre-triggered.
+  useEffect(() => {
+    if (!searching) setSearchScope('mine')
+  }, [searching])
 
   return (
     <div data-testid="lists-screen" className="px-[18px] pt-[62px] pb-[116px] space-y-4 min-h-full bg-bg">
@@ -51,12 +58,19 @@ export function ListsScreen() {
 
       {searching ? (
         <div>
+          <div data-testid="search-scope" className="mb-2">
+            <SegmentedControl
+              options={[{ value: 'mine', label: 'Mine' }, { value: 'all', label: 'Everyone' }]}
+              value={searchScope}
+              onChange={setSearchScope}
+            />
+          </div>
           <div className="text-[12px] font-bold uppercase tracking-[0.6px] text-text-muted mb-2">{results.length} result{results.length === 1 ? '' : 's'}</div>
           {results.length === 0 ? (
             <p className="text-center text-text-muted py-10">No tasks match your search</p>
           ) : (
             results.map((t) => (
-              <TaskResultRow key={t.id} task={t} assigneeEmail={t.assignee_email} showListContext onOpen={() => openItem(t.id, { listId: t.list_id, workspaceId: t.workspace_id })} />
+              <TaskResultRow key={t.id} task={t} assigneeEmail={searchScope === 'all' ? t.assignee_email : getUser()?.email} showListContext onOpen={() => openItem(t.id, { listId: t.list_id, workspaceId: t.workspace_id })} />
             ))
           )}
         </div>

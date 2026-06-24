@@ -19,5 +19,15 @@ module.exports = (authenticateToken) => {
     }
   });
 
+  // GET /api/me/items — ALL items accessible to the current user (not just assigned to them)
+  router.get('/items', async (req, res) => {
+    try {
+      res.json(await taskService.accessibleForUser(pool, req.user.id));
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: 'Failed to fetch items' });
+    }
+  });
+
   return router;
 };

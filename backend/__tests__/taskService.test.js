@@ -1,7 +1,7 @@
 // backend/__tests__/taskService.test.js
 'use strict';
 
-const { forUser } = require('../services/taskService');
+const { forUser, accessibleForUser } = require('../services/taskService');
 
 describe('taskService.forUser', () => {
   let mockPool;
@@ -90,6 +90,87 @@ describe('taskService.forUser', () => {
     mockPool.query.mockResolvedValueOnce({ rows });
 
     const result = await forUser(mockPool, 3);
+
+    expect(result).toBe(rows);
+  });
+});
+
+describe('taskService.accessibleForUser', () => {
+  let mockPool;
+
+  beforeEach(() => {
+    mockPool = { query: jest.fn() };
+  });
+
+  test('does NOT contain assignee_id = $1 as a WHERE filter', async () => {
+    mockPool.query.mockResolvedValueOnce({ rows: [] });
+
+    await accessibleForUser(mockPool, 42);
+
+    const [sql] = mockPool.query.mock.calls[0];
+    expect(sql).not.toMatch(/WHERE li\.assignee_id = \$1/);
+  });
+
+  test('query contains the owner access check (l.user_id = $1)', async () => {
+    mockPool.query.mockResolvedValueOnce({ rows: [] });
+
+    await accessibleForUser(mockPool, 7);
+
+    const [sql] = mockPool.query.mock.calls[0];
+    expect(sql).toMatch(/l\.user_id = \$1/);
+  });
+
+  test('query contains the list_shares EXISTS branch', async () => {
+    mockPool.query.mockResolvedValueOnce({ rows: [] });
+
+    await accessibleForUser(mockPool, 7);
+
+    const [sql] = mockPool.query.mock.calls[0];
+    expect(sql).toMatch(/EXISTS\s*\(\s*SELECT 1 FROM list_shares ls WHERE ls\.list_id = l\.id AND ls\.user_id = \$1\s*\)/);
+  });
+
+  test('query contains the workspace_members EXISTS branch', async () => {
+    mockPool.query.mockResolvedValueOnce({ rows: [] });
+
+    await accessibleForUser(mockPool, 7);
+
+    const [sql] = mockPool.query.mock.calls[0];
+    expect(sql).toMatch(/EXISTS\s*\(\s*SELECT 1 FROM workspace_members wm WHERE wm\.workspace_id = p\.workspace_id AND wm\.user_id = \$1\s*\)/);
+  });
+
+  test('query contains u.email AS assignee_email', async () => {
+    mockPool.query.mockResolvedValueOnce({ rows: [] });
+
+    await accessibleForUser(mockPool, 7);
+
+    const [sql] = mockPool.query.mock.calls[0];
+    expect(sql).toMatch(/u\.email AS assignee_email/);
+  });
+
+  test('access checks use OR (not AND-restricted to assignee)', async () => {
+    mockPool.query.mockResolvedValueOnce({ rows: [] });
+
+    await accessibleForUser(mockPool, 7);
+
+    const [sql] = mockPool.query.mock.calls[0];
+    // The WHERE clause should use OR between access checks, not AND
+    expect(sql).toMatch(/WHERE l\.user_id = \$1\s*\n\s*OR EXISTS/);
+  });
+
+  test('uses default limit 500, called with [userId, 500]', async () => {
+    mockPool.query.mockResolvedValueOnce({ rows: [] });
+
+    await accessibleForUser(mockPool, 99);
+
+    const [, params] = mockPool.query.mock.calls[0];
+    expect(params).toEqual([99, 500]);
+  });
+
+  test('returns r.rows', async () => {
+    const rows = [{ id: 1, text: 'task', list_name: 'L', project_name: 'P', assignee_email: 'a@b.com' }];
+    mockPool.query.mockResolvedValueOnce({ rows });
+
+    const result = await accessibleForUser(mockPool, 3);
 
     expect(result).toBe(rows);
   });

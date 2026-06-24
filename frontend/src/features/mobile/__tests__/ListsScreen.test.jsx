@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-vi.mock('../../../lib/api.js', () => ({ useMyTasks: vi.fn(), useWorkspaceMembers: vi.fn(), useLists: vi.fn() }))
+vi.mock('../../../lib/api.js', () => ({ useMyTasks: vi.fn(), useAccessibleItems: vi.fn(), useLists: vi.fn() }))
+vi.mock('../../../lib/auth.js', () => ({ getUser: () => ({ email: 'me@example.com' }) }))
 const navigate = vi.fn()
 vi.mock('react-router-dom', () => ({ useNavigate: () => navigate }))
-import { useMyTasks, useWorkspaceMembers, useLists } from '../../../lib/api.js'
+import { useMyTasks, useAccessibleItems, useLists } from '../../../lib/api.js'
 import { useStore } from '../../../lib/store.js'
 import { ListsScreen } from '../ListsScreen.jsx'
 
@@ -15,7 +16,10 @@ describe('ListsScreen', () => {
       { id: 1, text: 'A', list_id: 2, list_name: 'Venue', project_name: 'Wedding', workspace_id: 9, project_id: 4, completed: false, status: 'To do', due_date: null },
       { id: 2, text: 'B', list_id: 2, list_name: 'Venue', project_name: 'Wedding', workspace_id: 9, project_id: 4, completed: true, status: 'Done', due_date: null },
     ], isLoading: false })
-    useWorkspaceMembers.mockReturnValue({ data: [] })
+    useAccessibleItems.mockReturnValue({ data: [
+      { id: 1, text: 'A', list_id: 2, list_name: 'Venue', project_name: 'Wedding', workspace_id: 9, project_id: 4, completed: false, status: 'To do', due_date: null, assignee_email: 'me@example.com' },
+      { id: 99, text: 'Spouse task', list_id: 2, list_name: 'Venue', project_name: 'Wedding', workspace_id: 9, project_id: 4, completed: false, status: 'To do', due_date: null, assignee_email: 'spouse@example.com' },
+    ], isLoading: false })
     useLists.mockReturnValue({ data: [{ id: 2, name: 'Venue', project_name: 'Wedding', project_id: 4, workspace_id: 9, total_items: 2, completed_items: 1 }] })
   })
 
@@ -41,7 +45,7 @@ describe('ListsScreen', () => {
     expect(screen.getByText('No lists yet. Create one from a project.')).toBeInTheDocument()
   })
 
-  it('switches to search results when the query matches', () => {
+  it('switches to search results when the query matches (scope: mine)', () => {
     render(<ListsScreen />)
     fireEvent.change(screen.getByTestId('mobile-search-input'), { target: { value: 'A' } })
     expect(screen.getByText(/result/i)).toBeInTheDocument()
@@ -54,11 +58,17 @@ describe('ListsScreen', () => {
     expect(screen.getByText('No tasks match your search')).toBeInTheDocument()
   })
 
-  it('matches tasks by assignee email', () => {
-    useStore.setState({ searchQuery: 'bridesmaid' })
-    useMyTasks.mockReturnValue({ data: [{ id: 7, text: 'Pick shoes', list_id: 2, list_name: 'Venue', workspace_id: 9, project_id: 4, assignee_id: 11, completed: false, status: 'To do', due_date: null }], isLoading: false })
-    useWorkspaceMembers.mockReturnValue({ data: [{ user_id: 11, email: 'bridesmaid@example.com' }] })
+  it('does not show another user\'s task by default (scope: mine)', () => {
     render(<ListsScreen />)
-    expect(screen.getByTestId('result-row-7')).toBeInTheDocument()
+    fireEvent.change(screen.getByTestId('mobile-search-input'), { target: { value: 'Spouse' } })
+    expect(screen.queryByTestId('result-row-99')).not.toBeInTheDocument()
+    expect(screen.getByText('No tasks match your search')).toBeInTheDocument()
+  })
+
+  it('shows another user\'s task after switching to Everyone', () => {
+    render(<ListsScreen />)
+    fireEvent.change(screen.getByTestId('mobile-search-input'), { target: { value: 'Spouse' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Everyone' }))
+    expect(screen.getByTestId('result-row-99')).toBeInTheDocument()
   })
 })

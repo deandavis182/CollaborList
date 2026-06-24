@@ -645,6 +645,22 @@ export function useMyTasks() {
   })
 }
 
+/**
+ * Fetch ALL items accessible to the current user (not just assigned to them).
+ * Used as the "Everyone" search corpus on the mobile Lists tab.
+ * Pass { enabled: false } to skip the fetch (e.g. when scope is 'mine').
+ */
+export function useAccessibleItems({ enabled = true } = {}) {
+  return useQuery({
+    queryKey: ['accessibleItems'],
+    enabled,
+    queryFn: async () => {
+      const { data } = await apiClient.get('/me/items')
+      return data
+    },
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Activity hooks
 // ---------------------------------------------------------------------------
