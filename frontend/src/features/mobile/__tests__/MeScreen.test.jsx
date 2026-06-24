@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }))
+const { logout, navigate } = vi.hoisted(() => ({ logout: vi.fn(), navigate: vi.fn() }))
+vi.mock('react-router-dom', () => ({ useNavigate: () => navigate }))
 vi.mock('../../../lib/api.js', () => ({
   useMyTasks: () => ({ data: [{ id: 1, completed: false, due_date: null }] }),
   useWorkspaces: () => ({ data: [{ id: 7, name: 'WS' }] }),
 }))
-const { logout } = vi.hoisted(() => ({ logout: vi.fn() }))
 vi.mock('../../../lib/auth.js', () => ({ getUser: () => ({ email: 'me@example.com' }), logout }))
 vi.mock('../../notifications/NotificationPrefs.jsx', () => ({ NotificationPrefs: () => <div data-testid="notif-prefs" /> }))
 import { useStore } from '../../../lib/store.js'
@@ -33,16 +33,18 @@ describe('MeScreen', () => {
   })
 
   it('clicking Workspace row navigates to /w/7 when currentWorkspaceId is null but first workspace id is 7', () => {
-    const navigate = vi.fn()
-    vi.mocked(vi.importMock('react-router-dom')).useNavigate = () => navigate
-    // Re-mock useNavigate inline for this test
-    const { useNavigate } = vi.getMockedModule ? vi.getMockedModule('react-router-dom') : {}
+    navigate.mockClear()
     render(<MeScreen />)
     fireEvent.click(screen.getByRole('button', { name: 'Workspace' }))
-    // navigate should have been called with /w/7 (fallback to first workspace)
-    // We verify indirectly via the mock navigate captured in the module mock
-    // Since the mock returns a new fn each call, we just verify no throw and the button exists
-    expect(screen.getByRole('button', { name: 'Workspace' })).toBeInTheDocument()
+    // Falls back to the first workspace's id (7) since currentWorkspaceId is null
+    expect(navigate).toHaveBeenCalledWith('/w/7')
+  })
+
+  it('clicking Members row navigates to the workspace', () => {
+    navigate.mockClear()
+    render(<MeScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'Members' }))
+    expect(navigate).toHaveBeenCalledWith('/w/7')
   })
 
   it('Live sync row shows Offline when socketConnected is false', () => {
