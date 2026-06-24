@@ -24,6 +24,7 @@ import { ListView } from '../features/items/ListView.jsx'
 import { LoginView } from '../features/auth/LoginView.jsx'
 import { MeScreen } from '../features/mobile/MeScreen.jsx'
 import { ListsScreen } from '../features/mobile/ListsScreen.jsx'
+import { MobileWorkspaceScreen } from '../features/mobile/MobileWorkspaceScreen.jsx'
 import { RequireAuth } from '../features/auth/RequireAuth.jsx'
 import { Sheet } from '../ui/Sheet.jsx'
 import { Button } from '../ui/Button.jsx'
@@ -111,10 +112,13 @@ export function HomeView() {
 // ---------------------------------------------------------------------------
 
 /**
- * Workspace overview: syncs :workspaceId param → store, lists projects with
- * links, and provides a "Workspace settings" sheet (TagManager + MemberManager).
+ * WorkspaceViewDesktop — the original desktop workspace overview.
+ * Syncs :workspaceId param → store, lists projects with links, and provides
+ * a "Workspace settings" sheet (TagManager + MemberManager).
+ *
+ * @private — used by the WorkspaceView wrapper below.
  */
-export function WorkspaceView() {
+function WorkspaceViewDesktop() {
   const { workspaceId } = useParams()
   const setCurrentWorkspace = useStore((s) => s.setCurrentWorkspace)
   const setCurrentProject = useStore((s) => s.setCurrentProject)
@@ -232,6 +236,20 @@ export function WorkspaceView() {
       </Sheet>
     </div>
   )
+}
+
+// ---------------------------------------------------------------------------
+// WorkspaceView — mobile/desktop wrapper  (shown at "/w/:workspaceId")
+// ---------------------------------------------------------------------------
+
+/**
+ * WorkspaceView — uses the WRAPPER pattern to avoid calling hooks conditionally.
+ * On mobile it renders MobileWorkspaceScreen; on desktop it renders WorkspaceViewDesktop.
+ * Both branches perform their own store-sync effect, so the store stays up to date
+ * regardless of which branch is active.
+ */
+export function WorkspaceView() {
+  return useIsMobile() ? <MobileWorkspaceScreen /> : <WorkspaceViewDesktop />
 }
 
 // ---------------------------------------------------------------------------
