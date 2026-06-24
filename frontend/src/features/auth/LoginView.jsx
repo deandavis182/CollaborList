@@ -112,7 +112,7 @@ export function LoginView() {
           })
         }
       } catch (e) {
-        // Non-fatal: leave the password form as the fallback path.
+        // Non-fatal: the Google button may not render, but the page stays usable.
         console.error('Google Sign-In init failed:', e)
       }
     }
@@ -145,89 +145,89 @@ export function LoginView() {
           </div>
         )}
 
-        {/* Google Sign-In — rendered when a client id is configured */}
-        {googleEnabled && (
-          <div className="mb-5 flex flex-col items-center gap-4">
+        {/* Google Sign-In — when a client id is configured, show ONLY the Google button */}
+        {googleEnabled ? (
+          <div className="flex flex-col items-center gap-4">
             <div
               ref={googleBtnRef}
               data-testid="google-signin"
               className="flex justify-center min-h-[40px]"
             />
-            <div className="flex items-center gap-3 w-full">
-              <span className="h-px flex-1 bg-border" />
-              <span className="text-xs text-text-muted">or</span>
-              <span className="h-px flex-1 bg-border" />
-            </div>
+            <p className="text-sm text-text-muted text-center">
+              Sign in with your Google account to continue.
+            </p>
           </div>
+        ) : (
+          <>
+            {/* Form */}
+            <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
+              {/* Email */}
+              <Field label="Email" htmlFor="auth-email-input">
+                <input
+                  id="auth-email-input"
+                  data-testid="auth-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </Field>
+
+              {/* Password */}
+              <Field label="Password" htmlFor="auth-password-input">
+                <input
+                  id="auth-password-input"
+                  data-testid="auth-password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete={isSignup ? 'new-password' : 'current-password'}
+                  placeholder="••••••••"
+                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                {/* Password hint — shown in sign-up mode */}
+                {isSignup && (
+                  <p className="mt-1 text-xs text-text-muted">{PASSWORD_HINT}</p>
+                )}
+              </Field>
+
+              {/* Submit */}
+              <Button
+                type="submit"
+                variant="primary"
+                size="md"
+                disabled={isPending}
+                data-testid="auth-submit"
+              >
+                {isPending
+                  ? isSignup
+                    ? 'Creating account…'
+                    : 'Logging in…'
+                  : isSignup
+                    ? 'Sign up'
+                    : 'Log in'}
+              </Button>
+            </form>
+
+            {/* Mode toggle */}
+            <p className="mt-5 text-center text-sm text-text-muted">
+              {isSignup ? 'Already have an account?' : "Don't have an account?"}
+              {' '}
+              <button
+                type="button"
+                data-testid="auth-toggle-mode"
+                onClick={toggleMode}
+                className="text-primary hover:underline font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
+              >
+                {isSignup ? 'Log in' : 'Sign up'}
+              </button>
+            </p>
+          </>
         )}
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
-          {/* Email */}
-          <Field label="Email" htmlFor="auth-email-input">
-            <input
-              id="auth-email-input"
-              data-testid="auth-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-              placeholder="you@example.com"
-              className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </Field>
-
-          {/* Password */}
-          <Field label="Password" htmlFor="auth-password-input">
-            <input
-              id="auth-password-input"
-              data-testid="auth-password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete={isSignup ? 'new-password' : 'current-password'}
-              placeholder="••••••••"
-              className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-            {/* Password hint — shown in sign-up mode */}
-            {isSignup && (
-              <p className="mt-1 text-xs text-text-muted">{PASSWORD_HINT}</p>
-            )}
-          </Field>
-
-          {/* Submit */}
-          <Button
-            type="submit"
-            variant="primary"
-            size="md"
-            disabled={isPending}
-            data-testid="auth-submit"
-          >
-            {isPending
-              ? isSignup
-                ? 'Creating account…'
-                : 'Logging in…'
-              : isSignup
-                ? 'Sign up'
-                : 'Log in'}
-          </Button>
-        </form>
-
-        {/* Mode toggle */}
-        <p className="mt-5 text-center text-sm text-text-muted">
-          {isSignup ? 'Already have an account?' : "Don't have an account?"}
-          {' '}
-          <button
-            type="button"
-            data-testid="auth-toggle-mode"
-            onClick={toggleMode}
-            className="text-primary hover:underline font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
-          >
-            {isSignup ? 'Log in' : 'Sign up'}
-          </button>
-        </p>
       </Card>
     </div>
   )

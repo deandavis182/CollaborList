@@ -331,6 +331,16 @@ describe('LoginView — Google Sign-In', () => {
     })
   })
 
+  it('hides the email/password form and sign-up toggle when Google is configured', () => {
+    render(<LoginView />)
+    expect(screen.getByRole('heading', { name: /log in/i })).toBeInTheDocument()
+    expect(screen.getByTestId('google-signin')).toBeInTheDocument()
+    expect(screen.queryByTestId('auth-email')).toBeNull()
+    expect(screen.queryByTestId('auth-password')).toBeNull()
+    expect(screen.queryByTestId('auth-submit')).toBeNull()
+    expect(screen.queryByTestId('auth-toggle-mode')).toBeNull()
+  })
+
   it('on Google credential, posts to /auth/google and stores auth', async () => {
     apiClient.post.mockResolvedValueOnce({
       data: { token: 'g-tok', user: { id: 9, email: 'g@example.com' } },
