@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { groupTasksByDue } from '../groupTasks.js'
+import { groupTasksByDue, isCompletedToday } from '../groupTasks.js'
 
 // Fixed reference point: 2025-06-15 noon (local time)
 const NOW = new Date(2025, 5, 15, 12, 0, 0) // month is 0-indexed → June
@@ -30,6 +30,16 @@ const DUE_TOMORROW  = localISO(2025, 6, 16) // June 16, 2025
 const DUE_FUTURE    = localISO(2025, 7, 1)  // July 1, 2025
 const DUE_PAST      = localISO(2025, 6, 1)  // June 1, 2025
 const DUE_LONG_PAST = localISO(2020, 1, 1)  // Jan 1, 2020
+
+describe('isCompletedToday', () => {
+  it('isCompletedToday: true only for completed tasks due today', () => {
+    const today = new Date().toISOString().slice(0, 10)
+    expect(isCompletedToday({ completed: true, due_date: today })).toBe(true)
+    expect(isCompletedToday({ completed: false, due_date: today })).toBe(false)
+    expect(isCompletedToday({ completed: true, due_date: '2000-01-01' })).toBe(false)
+    expect(isCompletedToday({ completed: true, due_date: null })).toBe(false)
+  })
+})
 
 describe('groupTasksByDue', () => {
   // -----------------------------------------------------------------------

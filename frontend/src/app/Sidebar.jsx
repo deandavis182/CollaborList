@@ -7,7 +7,6 @@
  * Also shows an Activity nav link with an unread dot when there are
  * unread activity items in the current workspace.
  *
- * NOTE: The mobile BottomTabBar Activity tab + its dot are wired in Task 3B.10.
  */
 
 import { Link } from 'react-router-dom'

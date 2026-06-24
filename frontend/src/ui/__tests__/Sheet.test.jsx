@@ -148,4 +148,20 @@ describe('Sheet', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onClose).not.toHaveBeenCalled()
   })
+
+  it('titleHidden names the dialog via aria-label but renders no visible header or close button', () => {
+    render(<Sheet variant="bottom" open onClose={() => {}} title="Hello" titleHidden><p>body</p></Sheet>)
+    const panel = screen.getByTestId('sheet-panel')
+    expect(panel).toHaveAttribute('aria-label', 'Hello')
+    expect(screen.queryByRole('heading', { name: 'Hello' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
+  })
+
+  it('bottom variant renders a grab handle and bottom-anchored panel', () => {
+    render(<Sheet variant="bottom" open onClose={() => {}} title="Detail"><p>body</p></Sheet>)
+    expect(screen.getByTestId('sheet-grab')).toBeInTheDocument()
+    const panel = screen.getByTestId('sheet-panel')
+    expect(panel.className).toMatch(/rounded-t-4xl/)
+    expect(panel.className).toMatch(/bottom-0/)
+  })
 })

@@ -5,6 +5,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import React from 'react'
 
 // ---------------------------------------------------------------------------
+// Mock useIsMobile so tests control mobile/desktop mode
+// ---------------------------------------------------------------------------
+vi.mock('../../lib/useMediaQuery.js', () => ({ useIsMobile: vi.fn() }))
+
+// ---------------------------------------------------------------------------
 // Mock api so no network calls happen
 // ---------------------------------------------------------------------------
 vi.mock('../../lib/api.js', () => ({
@@ -16,6 +21,14 @@ vi.mock('../../lib/api.js', () => ({
   useVapidKey: vi.fn(() => ({ data: null })),
   useNotificationPrefs: vi.fn(() => ({ data: null })),
   useUpdateNotificationPrefs: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  // Mobile children (MobileItemSheet + QuickAddSheet) are mounted in the mobile
+  // branch and call these hooks unconditionally — provide inert defaults so they
+  // can mount without network access.
+  useListItems: vi.fn(() => ({ data: [] })),
+  useUpdateItem: vi.fn(() => ({ mutate: vi.fn() })),
+  useWorkspaceMembers: vi.fn(() => ({ data: [] })),
+  useMyTasks: vi.fn(() => ({ data: [] })),
+  useCreateItem: vi.fn(() => ({ mutate: vi.fn() })),
 }))
 
 // ---------------------------------------------------------------------------
@@ -42,6 +55,7 @@ vi.mock('../../lib/auth.js', () => ({
 import { useWorkspaceActivity } from '../../lib/api.js'
 import { getUser, logout } from '../../lib/auth.js'
 import { useStore } from '../../lib/store.js'
+import { useIsMobile } from '../../lib/useMediaQuery.js'
 import { AppLayout } from '../AppLayout.jsx'
 
 // ---------------------------------------------------------------------------
@@ -69,11 +83,21 @@ function resetStore() {
   })
 }
 
+function renderLayout(initialPath = '/') {
+  return render(
+    <AppLayout><span /></AppLayout>,
+    { wrapper: ({ children }) => <Wrapper initialPath={initialPath}>{children}</Wrapper> }
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 describe('AppLayout — structure', () => {
-  beforeEach(resetStore)
+  beforeEach(() => {
+    resetStore()
+    useIsMobile.mockReturnValue(false)
+  })
 
   it('renders children in the main content area', () => {
     render(
@@ -101,17 +125,13 @@ describe('AppLayout — structure', () => {
     expect(sidebarContainer.className).toContain('hidden')
   })
 
-  it('bottom bar container has md:hidden class (hidden on desktop)', () => {
+  it('does not render the old desktop BottomTabBar (superseded by MobileTabBar)', () => {
     render(<AppLayout><span /></AppLayout>, { wrapper: Wrapper })
 
-    const bottomBarContainer = screen.getByTestId('bottom-bar-container')
-    expect(bottomBarContainer.className).toContain('md:hidden')
-  })
-
-  it('bottom tab bar is rendered in the DOM', () => {
-    render(<AppLayout><span /></AppLayout>, { wrapper: Wrapper })
-
-    expect(screen.getByTestId('bottom-tab-bar')).toBeInTheDocument()
+    // On desktop the shell renders no bottom bar at all; on mobile it renders
+    // the MobileTabBar instead. The old BottomTabBar is no longer mounted.
+    expect(screen.queryByTestId('bottom-bar-container')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('bottom-tab-bar')).not.toBeInTheDocument()
   })
 
   it('sidebar is rendered inside the sidebar container', () => {
@@ -123,7 +143,10 @@ describe('AppLayout — structure', () => {
 })
 
 describe('AppLayout — header + presence bar', () => {
-  beforeEach(resetStore)
+  beforeEach(() => {
+    resetStore()
+    useIsMobile.mockReturnValue(false)
+  })
 
   it('renders the app-header', () => {
     render(<AppLayout><span /></AppLayout>, { wrapper: Wrapper })
@@ -138,7 +161,10 @@ describe('AppLayout — header + presence bar', () => {
 })
 
 describe('AppLayout — no placeholder detail Sheet', () => {
-  beforeEach(resetStore)
+  beforeEach(() => {
+    resetStore()
+    useIsMobile.mockReturnValue(false)
+  })
 
   it('does not render a placeholder detail dialog when detailItemId is null', () => {
     render(<AppLayout><span /></AppLayout>, { wrapper: Wrapper })
@@ -154,10 +180,13 @@ describe('AppLayout — no placeholder detail Sheet', () => {
   })
 })
 
-describe('AppLayout — BottomTabBar navigation', () => {
-  beforeEach(resetStore)
+describe('AppLayout — MobileTabBar navigation (mobile)', () => {
+  beforeEach(() => {
+    resetStore()
+    useIsMobile.mockReturnValue(true)
+  })
 
-  it('home tab has aria-current=page at /my-tasks', () => {
+  it('today tab has aria-current=page at /my-tasks', () => {
     render(
       <QueryClientProvider client={makeQC()}>
         <MemoryRouter initialEntries={['/my-tasks']}>
@@ -165,10 +194,10 @@ describe('AppLayout — BottomTabBar navigation', () => {
         </MemoryRouter>
       </QueryClientProvider>
     )
-    expect(screen.getByTestId('tab-home')).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByTestId('mtab-today')).toHaveAttribute('aria-current', 'page')
   })
 
-  it('home tab has aria-current=page at /', () => {
+  it('lists tab has aria-current=page at /', () => {
     render(
       <QueryClientProvider client={makeQC()}>
         <MemoryRouter initialEntries={['/']}>
@@ -176,7 +205,7 @@ describe('AppLayout — BottomTabBar navigation', () => {
         </MemoryRouter>
       </QueryClientProvider>
     )
-    expect(screen.getByTestId('tab-home')).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByTestId('mtab-lists')).toHaveAttribute('aria-current', 'page')
   })
 
   it('activity tab has aria-current=page at /w/:id/activity', () => {
@@ -187,12 +216,26 @@ describe('AppLayout — BottomTabBar navigation', () => {
         </MemoryRouter>
       </QueryClientProvider>
     )
-    expect(screen.getByTestId('tab-activity')).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByTestId('mtab-activity')).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('me tab has aria-current=page at /me', () => {
+    render(
+      <QueryClientProvider client={makeQC()}>
+        <MemoryRouter initialEntries={['/me']}>
+          <AppLayout><span /></AppLayout>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    expect(screen.getByTestId('mtab-me')).toHaveAttribute('aria-current', 'page')
   })
 })
 
-describe('AppLayout — activity unread dot', () => {
-  beforeEach(resetStore)
+describe('AppLayout — activity unread dot (mobile tab bar)', () => {
+  beforeEach(() => {
+    resetStore()
+    useIsMobile.mockReturnValue(true)
+  })
 
   it('does not show the unread dot when unread count is 0', () => {
     useWorkspaceActivity.mockReturnValue({ data: { items: [], unread: 0 } })
@@ -200,7 +243,7 @@ describe('AppLayout — activity unread dot', () => {
 
     render(<AppLayout><span /></AppLayout>, { wrapper: Wrapper })
 
-    expect(screen.queryByTestId('tab-activity-unread-dot')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('mtab-activity-unread')).not.toBeInTheDocument()
   })
 
   it('shows the unread dot when unread count > 0', () => {
@@ -209,7 +252,7 @@ describe('AppLayout — activity unread dot', () => {
 
     render(<AppLayout><span /></AppLayout>, { wrapper: Wrapper })
 
-    expect(screen.getByTestId('tab-activity-unread-dot')).toBeInTheDocument()
+    expect(screen.getByTestId('mtab-activity-unread')).toBeInTheDocument()
   })
 
   it('does not show the unread dot when no workspace is selected, even with unread data', () => {
@@ -218,7 +261,7 @@ describe('AppLayout — activity unread dot', () => {
 
     render(<AppLayout><span /></AppLayout>, { wrapper: Wrapper })
 
-    expect(screen.queryByTestId('tab-activity-unread-dot')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('mtab-activity-unread')).not.toBeInTheDocument()
   })
 })
 
@@ -227,7 +270,10 @@ describe('AppLayout — activity unread dot', () => {
 // ---------------------------------------------------------------------------
 
 describe('AppLayout — header user email and logout', () => {
-  beforeEach(resetStore)
+  beforeEach(() => {
+    resetStore()
+    useIsMobile.mockReturnValue(false)
+  })
 
   afterEach(() => {
     vi.clearAllMocks()
@@ -269,5 +315,33 @@ describe('AppLayout — header user email and logout', () => {
 
     expect(logout).toHaveBeenCalledTimes(1)
     assignSpy.mockRestore()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Tests — responsive: mobile vs desktop
+// ---------------------------------------------------------------------------
+
+describe('AppLayout — responsive mobile/desktop', () => {
+  beforeEach(() => {
+    resetStore()
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('mobile: shows MobileTabBar and hides the desktop header', () => {
+    useIsMobile.mockReturnValue(true)
+    renderLayout()
+    expect(screen.getByTestId('mobile-tab-bar')).toBeInTheDocument()
+    expect(screen.queryByTestId('app-header')).not.toBeInTheDocument()
+  })
+
+  it('desktop: shows the header and not the mobile tab bar', () => {
+    useIsMobile.mockReturnValue(false)
+    renderLayout()
+    expect(screen.getByTestId('app-header')).toBeInTheDocument()
+    expect(screen.queryByTestId('mobile-tab-bar')).not.toBeInTheDocument()
   })
 })

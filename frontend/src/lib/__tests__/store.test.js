@@ -7,9 +7,13 @@ function resetStore() {
     currentWorkspaceId: null,
     currentProjectId: null,
     detailItemId: null,
+    detailContext: null,
     presence: {},
     typing: {},
     theme: 'light',
+    searchQuery: '',
+    quickAddOpen: false,
+    toast: null,
   })
 }
 
@@ -164,5 +168,63 @@ describe('useStore — theme', () => {
     }
     // 5 toggles: light → dark → light → dark → light → dark
     expect(useStore.getState().theme).toBe('dark')
+  })
+
+  it('toggleTheme persists to localStorage', () => {
+    useStore.getState().toggleTheme()
+    expect(localStorage.getItem('theme')).toBe('dark')
+  })
+})
+
+describe('useStore — mobile extensions', () => {
+  beforeEach(resetStore)
+
+  it('setSearchQuery updates searchQuery', () => {
+    useStore.getState().setSearchQuery('cake')
+    expect(useStore.getState().searchQuery).toBe('cake')
+  })
+
+  it('setQuickAddOpen toggles quickAddOpen', () => {
+    useStore.getState().setQuickAddOpen(true)
+    expect(useStore.getState().quickAddOpen).toBe(true)
+  })
+
+  it('openItem sets id and context; closeDetail clears both', () => {
+    useStore.getState().openItem(5, { listId: 2, workspaceId: 9 })
+    expect(useStore.getState().detailItemId).toBe(5)
+    expect(useStore.getState().detailContext).toEqual({ listId: 2, workspaceId: 9 })
+    useStore.getState().closeDetail()
+    expect(useStore.getState().detailItemId).toBeNull()
+    expect(useStore.getState().detailContext).toBeNull()
+  })
+
+  it('setTheme persists to localStorage', () => {
+    useStore.getState().setTheme('dark')
+    expect(localStorage.getItem('theme')).toBe('dark')
+    expect(useStore.getState().theme).toBe('dark')
+  })
+})
+
+describe('useStore — global toast', () => {
+  beforeEach(resetStore)
+
+  it('starts with no toast', () => {
+    expect(useStore.getState().toast).toBeNull()
+  })
+
+  it('showToast sets the message with default success variant', () => {
+    useStore.getState().showToast('Task added')
+    expect(useStore.getState().toast).toEqual({ message: 'Task added', variant: 'success' })
+  })
+
+  it('showToast accepts an explicit variant', () => {
+    useStore.getState().showToast('Something broke', 'error')
+    expect(useStore.getState().toast).toEqual({ message: 'Something broke', variant: 'error' })
+  })
+
+  it('dismissToast clears the toast', () => {
+    useStore.getState().showToast('Task added')
+    useStore.getState().dismissToast()
+    expect(useStore.getState().toast).toBeNull()
   })
 })
